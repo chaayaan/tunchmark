@@ -1,0 +1,48 @@
+Database creation
+
+CREATE Database billing_app
+
+1.Users Table
+
+CREATE TABLE users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20),
+    address TEXT,
+    password VARCHAR(255) NOT NULL,
+    role ENUM('super_admin', 'admin', 'employee') NOT NULL DEFAULT 'employee',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+2.Customers Table
+
+CREATE TABLE customers (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(100) NOT NULL,
+    phone VARCHAR(20),
+    address TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+3.Bills (Invoices) Table
+
+CREATE TABLE bills (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    customer_id INT NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    services_items TEXT NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    status ENUM('paid', 'pending', 'cancelled') DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+);
+
+4.Initial Data Setup
+
+Insert sample customers
+
+INSERT INTO customers (name, phone, address) VALUES 
+('John Doe', '9876543210', '123 Main Street'),
+('Jane Smith', '5555551234', '456 Oak Avenue');
