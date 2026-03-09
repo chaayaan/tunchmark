@@ -36,7 +36,7 @@ $errors = [];
 
 // Handle Form Submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // MODIFIED: Take values directly from POST, don't fetch from database
+    // Take values directly from POST, don't fetch from database
     $customerId      = !empty($_POST['customer_id']) ? intval($_POST['customer_id']) : null;
     $customerName    = trim($_POST['customer_name'] ?? '');
     $customerPhone   = trim($_POST['customer_phone'] ?? '');
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $itemIds     = $_POST['item_id'] ?? [];
     $serviceIds  = $_POST['service_id'] ?? [];
     $weights     = $_POST['weight'] ?? [];
-    $karats      = $_POST['karat'] ?? [];   
+    $karats      = $_POST['karat'] ?? [];
     $quantities  = $_POST['quantity'] ?? [];
     $unitPrices  = $_POST['unit_price'] ?? [];
     $totalPrices = $_POST['total_price'] ?? [];
@@ -60,27 +60,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validate Items
     $validItems = [];
     for ($i = 0; $i < count($itemIds); $i++) {
-        $itemId = !empty($itemIds[$i]) ? intval($itemIds[$i]) : null;
+        $itemId    = !empty($itemIds[$i])    ? intval($itemIds[$i])    : null;
         $serviceId = !empty($serviceIds[$i]) ? intval($serviceIds[$i]) : null;
-        $weight = floatval($weights[$i] ?? 0);
-        $karat = trim($karats[$i] ?? '');   
-        $qty = intval($quantities[$i] ?? 0);
-        $unit = floatval($unitPrices[$i] ?? 0);
-        $total = floatval($totalPrices[$i] ?? ($qty * $unit));
+        $weight    = floatval($weights[$i]   ?? 0);
+        $karat     = trim($karats[$i]        ?? '');
+        $qty       = intval($quantities[$i]  ?? 0);
+        $unit      = floatval($unitPrices[$i] ?? 0);
+        $total     = floatval($totalPrices[$i] ?? ($qty * $unit));
 
-        // Must have BOTH item_id AND service_id
         if ($itemId !== null && $serviceId !== null && $qty > 0) {
             $validItems[] = [
-                'item_id' => $itemId,
-                'service_id' => $serviceId,
-                'weight' => $weight,
-                'karat' => $karat,
-                'quantity' => $qty,
-                'unit_price' => $unit,
+                'item_id'     => $itemId,
+                'service_id'  => $serviceId,
+                'weight'      => $weight,
+                'karat'       => $karat,
+                'quantity'    => $qty,
+                'unit_price'  => $unit,
                 'total_price' => $total
             ];
         } else if ($itemId !== null || $serviceId !== null) {
-            // If only one is selected, show error
             $errors[] = "Row " . ($i + 1) . ": Both Item and Service must be selected";
         }
     }
@@ -92,62 +90,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         mysqli_begin_transaction($conn);
         try {
-            // MODIFIED: Use the posted customer_id if provided, but don't override other fields
-            $finalCustomerId = $customerId; // Just use the ID as-is, don't fetch from DB
-            
+            $finalCustomerId = $customerId;
             $status = ($paymentStatus === 'paid') ? 'paid' : 'pending';
 
-            // Insert into orders table - use the values from the form
-            $stmt = mysqli_prepare(
-                $conn,
+            $stmt = mysqli_prepare($conn,
                 "INSERT INTO orders (customer_id, customer_name, customer_phone, customer_address, manufacturer, box_no, status, created_by)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             );
-            mysqli_stmt_bind_param(
-                $stmt,
-                "isssssss",
-                $finalCustomerId,
-                $customerName,
-                $customerPhone,
-                $customerAddress,
-                $manufacturer,
-                $boxNo,
-                $status,
-                $createdBy
+            mysqli_stmt_bind_param($stmt, "isssssss",
+                $finalCustomerId, $customerName, $customerPhone,
+                $customerAddress, $manufacturer, $boxNo, $status, $createdBy
             );
 
             if (mysqli_stmt_execute($stmt)) {
                 $orderId = mysqli_insert_id($conn);
                 mysqli_stmt_close($stmt);
 
-                // Insert bill_items
-                $itemStmt = mysqli_prepare(
-                    $conn,
+                $itemStmt = mysqli_prepare($conn,
                     "INSERT INTO bill_items (order_id, item_id, service_id, karat, weight, quantity, unit_price, total_price)
                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
                 );
 
                 foreach ($validItems as $item) {
-                    mysqli_stmt_bind_param(
-                        $itemStmt,
-                        "iiisdidd",
-                        $orderId,
-                        $item['item_id'],
-                        $item['service_id'],
-                        $item['karat'],
-                        $item['weight'],
-                        $item['quantity'],
-                        $item['unit_price'],
-                        $item['total_price']
+                    mysqli_stmt_bind_param($itemStmt, "iiisdidd",
+                        $orderId, $item['item_id'], $item['service_id'],
+                        $item['karat'], $item['weight'], $item['quantity'],
+                        $item['unit_price'], $item['total_price']
                     );
-                    
                     if (!mysqli_stmt_execute($itemStmt)) {
                         throw new Exception("Failed to insert bill item: " . mysqli_error($conn));
                     }
                 }
                 mysqli_stmt_close($itemStmt);
-
                 mysqli_commit($conn);
+
                 header("Location: order.php?success=1&order_id=$orderId");
                 exit;
             } else {
@@ -164,1466 +140,1214 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>New Order - Rajaiswari Hallmarking Center</title>
-<link rel="icon" type="image/png" href="favicon.png">
-<link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
-<style>
-    body { background: #f8f9fa; }
-    .card { margin-bottom: 20px; box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); }
-    .qr-test-area { 
-        position: fixed; 
-        top: 10px; 
-        right: 10px; 
-        width: 100px; 
-        height: 100px; 
-        background: white; 
-        border: 1px solid #ddd; 
-        display: none; 
-        z-index: 1000;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>New Order — Rajaiswari</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <style>
+    :root {
+      --bg:        #f1f3f6;
+      --surface:   #ffffff;
+      --surface-2: #fafbfc;
+      --border:    #e4e7ec;
+      --bsoft:     #f0f1f3;
+      --t1:        #111827;
+      --t2:        #374151;
+      --t3:        #6b7280;
+      --t4:        #9ca3af;
+      --blue:      #2563eb;  --blue-bg: #eff6ff;  --blue-b: #bfdbfe;
+      --green:     #059669;  --green-bg:#ecfdf5;  --green-b:#a7f3d0;
+      --amber:     #d97706;  --amber-bg:#fffbeb;
+      --red:       #dc2626;  --red-bg:  #fef2f2;  --red-b:  #fecaca;
+      --violet:    #7c3aed;  --violet-bg:#f5f3ff;
+      --r:         10px;
+      --rs:        6px;
+      --sh:        0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
     }
-    .print-status {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: rgba(0,123,255,0.9);
-        color: white;
-        padding: 10px;
-        border-radius: 5px;
-        display: none;
-        z-index: 1001;
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      font-size: 14.5px;
+      background: var(--bg);
+      color: var(--t1);
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
     }
-    .weight-display {
-        font-size: 11px;
-        color: #0d6efd;
-        font-weight: 500;
-        margin-top: 2px;
-        min-height: 16px;
+
+    /* ── Shell ──────────────────────────────── */
+    .page-shell {
+      margin-left: 200px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
-    .autocomplete-wrapper {
-        position: relative;
+
+    /* ── Top bar ────────────────────────────── */
+    .top-bar {
+      position: sticky; top: 0; z-index: 200;
+      height: 54px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--sh);
+      display: flex; align-items: center;
+      padding: 0 22px; gap: 10px; flex-shrink: 0;
     }
-    .autocomplete-suggestions {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        background: white;
-        border: 1px solid #ddd;
-        border-top: none;
-        max-height: 250px;
-        overflow-y: auto;
-        z-index: 1000;
-        display: none;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+
+    .tb-ico {
+      width: 32px; height: 32px;
+      background: var(--blue-bg);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--blue); font-size: 13px; flex-shrink: 0;
     }
-    .autocomplete-suggestions.active {
-        display: block;
+
+    .tb-title { font-size: 1.0625rem; font-weight: 700; color: var(--t1); line-height: 1.2; }
+    .tb-sub   { font-size: .8rem; color: var(--t4); }
+
+    .order-badge {
+      margin-left: auto;
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--rs);
+      padding: 4px 12px;
+      font-family: 'DM Mono', monospace;
+      font-size: .85rem; font-weight: 500; color: var(--t3);
     }
-    .autocomplete-item {
-        padding: 10px 12px;
-        cursor: pointer;
-        border-bottom: 1px solid #f0f0f0;
-        transition: background 0.2s;
+
+    /* ── Main ───────────────────────────────── */
+    .main {
+      flex: 1;
+      padding: 20px 22px 60px;
+      display: flex; flex-direction: column; gap: 14px;
     }
-    .autocomplete-item:hover {
-        background: #f8f9fa;
+
+    /* ── Section card ───────────────────────── */
+    .sec {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--r);
+      box-shadow: var(--sh);
+      overflow: hidden;
     }
-    .autocomplete-item:last-child {
-        border-bottom: none;
+
+    .sec-head {
+      display: flex; align-items: center; gap: 9px;
+      padding: 11px 18px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--bsoft);
     }
-    .autocomplete-item .customer-name {
-        font-weight: 600;
-        color: #333;
-        margin-bottom: 2px;
+
+    .sec-ico {
+      width: 28px; height: 28px;
+      border-radius: var(--rs);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; flex-shrink: 0;
     }
-    .autocomplete-item .customer-details {
-        font-size: 12px;
-        color: #666;
+    .i-blue   { background: var(--blue-bg);   color: var(--blue);   }
+    .i-violet { background: var(--violet-bg); color: var(--violet); }
+    .i-green  { background: var(--green-bg);  color: var(--green);  }
+
+    .sec-title {
+      font-size: .9375rem; font-weight: 700;
+      color: var(--t1); letter-spacing: -.01em;
     }
-    .autocomplete-item .customer-id {
-        display: inline-block;
-        background: #e7f3ff;
-        color: #0d6efd;
-        padding: 2px 6px;
-        border-radius: 3px;
-        font-size: 11px;
-        margin-right: 8px;
+
+    .sec-body { padding: 18px; }
+
+    /* ── Form controls ──────────────────────── */
+    .lbl {
+      display: block;
+      font-size: .76rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .06em;
+      color: var(--t3); margin-bottom: 5px;
     }
-    .autocomplete-loading {
-        padding: 10px;
-        text-align: center;
-        color: #666;
-        font-size: 13px;
+    .lbl .req { color: var(--red); margin-left: 2px; }
+
+    .fc, select.fc {
+      width: 100%; height: 38px;
+      padding: 0 11px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--rs);
+      font-family: 'DM Sans', sans-serif;
+      font-size: .9rem; color: var(--t2);
+      background: var(--surface);
+      transition: border-color .15s, box-shadow .15s;
+      outline: none;
+      appearance: none; -webkit-appearance: none;
     }
-    .autocomplete-no-results {
-        padding: 10px;
-        text-align: center;
-        color: #999;
-        font-size: 13px;
+
+    select.fc {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239ca3af' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 9px center;
+      padding-right: 28px;
     }
-</style>
+
+    .fc:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    .fc[readonly] { background: var(--surface-2); color: var(--t3); cursor: default; }
+
+    .fhint { font-size: .76rem; color: var(--t4); margin-top: 3px; }
+
+    /* ── Items table ────────────────────────── */
+    .tbl-wrap { overflow-x: auto; }
+
+    .tbl {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 870px;
+    }
+
+    .tbl thead th {
+      padding: 10px 8px;
+      text-align: left;
+      font-size: .74rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .07em;
+      color: var(--t4);
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .tbl thead th:first-child { padding-left: 18px; }
+
+    .tbl tbody td {
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--bsoft);
+      vertical-align: middle;
+    }
+
+    .tbl tbody td:first-child { padding-left: 14px; }
+    .tbl tbody tr:last-child td { border-bottom: none; }
+    .tbl tbody tr:hover td { background: #fafbff; }
+
+    .row-n {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      font-size: .78rem; font-weight: 700;
+      color: var(--t3);
+      font-family: 'DM Mono', monospace;
+    }
+
+    .vori-disp {
+      font-size: .76rem; font-weight: 600;
+      color: var(--blue);
+      margin-top: 2px;
+      font-family: 'DM Mono', monospace;
+      white-space: nowrap;
+      min-height: 14px;
+    }
+
+    .btn-rm {
+      width: 28px; height: 28px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--red-bg);
+      border: 1.5px solid var(--red-b);
+      border-radius: var(--rs);
+      color: var(--red);
+      font-size: 15px; font-weight: 700;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-rm:hover { background: var(--red); color: #fff; border-color: var(--red); }
+
+    /* ── Table footer ───────────────────────── */
+    .tbl-foot {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      padding: 11px 18px;
+      background: var(--surface-2);
+      border-top: 1px solid var(--border);
+      flex-wrap: wrap; gap: 10px;
+    }
+
+    .btn-add-row {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 34px; padding: 0 16px;
+      background: var(--blue-bg);
+      border: 1.5px solid var(--blue-b);
+      border-radius: var(--rs);
+      font-family: 'DM Sans', sans-serif;
+      font-size: .875rem; font-weight: 600;
+      color: var(--blue);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-add-row:hover { background: #dbeafe; }
+
+    .grand-wrap { display: flex; align-items: baseline; gap: 8px; }
+    .grand-lbl  { font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--t4); }
+    .grand-val  {
+      font-size: 1.4rem; font-weight: 800;
+      color: var(--green);
+      font-family: 'DM Mono', monospace;
+      letter-spacing: -.02em;
+    }
+
+    /* ── Payment options ────────────────────── */
+    .pay-opts { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .pay-opt {
+      display: flex; align-items: center; gap: 10px;
+      flex: 1; min-width: 150px;
+      padding: 12px 16px;
+      border: 2px solid var(--border);
+      border-radius: var(--rs);
+      cursor: pointer;
+      background: var(--surface);
+      transition: all .15s;
+      user-select: none;
+    }
+
+    .pay-opt input[type="radio"] { display: none; }
+
+    .pay-dot {
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: all .15s;
+    }
+    .pay-dot::after {
+      content: ''; width: 8px; height: 8px;
+      border-radius: 50%; background: transparent; transition: background .15s;
+    }
+
+    .pay-opt.paid:has(input:checked)    { border-color: var(--green); background: var(--green-bg); }
+    .pay-opt.paid:has(input:checked) .pay-dot { border-color: var(--green); }
+    .pay-opt.paid:has(input:checked) .pay-dot::after { background: var(--green); }
+
+    .pay-opt.pending:has(input:checked) { border-color: var(--amber); background: var(--amber-bg); }
+    .pay-opt.pending:has(input:checked) .pay-dot { border-color: var(--amber); }
+    .pay-opt.pending:has(input:checked) .pay-dot::after { background: var(--amber); }
+
+    .pay-name { font-size: .9375rem; font-weight: 600; color: var(--t1); }
+    .pay-desc { font-size: .79rem; color: var(--t4); margin-top: 1px; }
+
+    /* ── Action bar ─────────────────────────── */
+    .action-bar {
+      display: flex; align-items: center;
+      justify-content: flex-end; gap: 8px;
+      padding: 13px 18px;
+      background: var(--surface-2);
+      border-top: 1px solid var(--border);
+    }
+
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 38px; padding: 0 18px;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .9rem; font-weight: 500; color: var(--t2);
+      cursor: pointer; transition: all .15s;
+    }
+    .btn-ghost:hover { background: var(--surface-2); border-color: #9ca3af; }
+
+    .btn-submit {
+      display: inline-flex; align-items: center; gap: 7px;
+      height: 38px; padding: 0 24px;
+      background: var(--blue);
+      border: none; border-radius: 7px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: .9375rem; font-weight: 700; color: #fff;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(37,99,235,.25);
+      transition: background .15s;
+    }
+    .btn-submit:hover    { background: #1d4ed8; }
+    .btn-submit:disabled { background: #93c5fd; cursor: not-allowed; box-shadow: none; }
+
+    /* ── Alerts ─────────────────────────────── */
+    .alert-err {
+      background: var(--red-bg);
+      border: 1px solid var(--red-b);
+      border-left: 3px solid var(--red);
+      border-radius: var(--rs);
+      padding: 12px 16px;
+    }
+    .alert-err .ae-ttl { font-size: .9rem; font-weight: 700; color: var(--red); margin-bottom: 4px; }
+    .alert-err ul { margin: 0; padding-left: 16px; }
+    .alert-err li { font-size: .875rem; color: var(--red); }
+
+    .alert-ok {
+      background: var(--green-bg);
+      border: 1px solid var(--green-b);
+      border-left: 3px solid var(--green);
+      border-radius: var(--rs);
+      padding: 14px 18px;
+      display: flex; align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap; gap: 12px;
+    }
+    .ao-main   { font-size: .9375rem; font-weight: 700; color: #065f46; }
+    .ao-detail { font-size: .875rem; color: #047857; margin-top: 3px; }
+
+    .ao-btns { display: flex; gap: 7px; flex-shrink: 0; }
+
+    .btn-sm {
+      display: inline-flex; align-items: center; gap: 5px;
+      height: 32px; padding: 0 14px;
+      background: #fff;
+      border: 1.5px solid var(--green-b);
+      border-radius: var(--rs);
+      font-family: 'DM Sans', sans-serif;
+      font-size: .82rem; font-weight: 600; color: var(--green);
+      cursor: pointer; transition: all .15s;
+    }
+    .btn-sm:hover { background: var(--green-bg); }
+    .btn-sm.blue  { border-color: var(--blue-b); color: var(--blue); }
+    .btn-sm.blue:hover { background: var(--blue-bg); }
+
+    /* ── Autocomplete ───────────────────────── */
+    .ac-wrap { position: relative; }
+
+    .ac-drop {
+      position: absolute;
+      top: calc(100% + 2px); left: 0; right: 0;
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--rs) var(--rs);
+      max-height: 230px; overflow-y: auto;
+      z-index: 600; display: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,.1);
+    }
+    .ac-drop.open { display: block; }
+
+    .ac-item {
+      padding: 9px 12px; cursor: pointer;
+      border-bottom: 1px solid var(--bsoft);
+      transition: background .1s;
+    }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-item:hover, .ac-item.sel { background: var(--blue-bg); }
+
+    .ac-name {
+      font-size: .9rem; font-weight: 600; color: var(--t1);
+      display: flex; align-items: center; gap: 7px;
+    }
+    .ac-badge {
+      display: inline-block;
+      background: var(--blue-bg); color: var(--blue);
+      border: 1px solid var(--blue-b);
+      padding: 1px 6px; border-radius: 4px;
+      font-size: .74rem; font-weight: 700;
+      font-family: 'DM Mono', monospace;
+    }
+    .ac-sub  { font-size: .82rem; color: var(--t3); margin-top: 2px; }
+    .ac-hint { padding: 10px 12px; text-align: center; font-size: .875rem; color: var(--t4); }
+
+    /* ── QR test area ───────────────────────── */
+    #qrTestArea {
+      position: fixed; top: 10px; right: 10px;
+      width: 100px; height: 100px;
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 6px; overflow: hidden;
+      display: none; z-index: 9999;
+    }
+
+    /* ── Responsive ─────────────────────────── */
+    @media (max-width: 991.98px) {
+      .page-shell { margin-left: 0; }
+      .top-bar    { top: 52px; }
+      .main       { padding: 14px 14px 50px; }
+    }
+  </style>
 </head>
 <body>
-  <?php include 'navbar.php'; ?>
-  
-  <div id="qrTestArea" class="qr-test-area"></div>
-  <div id="printStatus" class="print-status">🖨️ Preparing receipt...</div>
 
-  <div class="container mt-2">
-  <div class="card shadow">
-    <div class="card-header bg-primary text-white">
-      <h3 class="mb-0">New Order</h3>
+<?php include 'navbar.php'; ?>
+
+<div class="page-shell">
+
+  <header class="top-bar">
+    <div class="tb-ico"><i class="fas fa-plus"></i></div>
+    <div>
+      <div class="tb-title">New Order</div>
+      <div class="tb-sub">Create a billing order</div>
     </div>
-    <div class="card-body">
+    <div class="order-badge">
+      <i class="fas fa-hashtag" style="font-size:.6rem;"></i>
+      Order #<?= htmlspecialchars($nextOrderNo) ?>
+    </div>
+  </header>
 
-      <?php if (!empty($errors)): ?>
-        <div class="alert alert-danger">
-          <ul class="mb-0">
-            <?php foreach($errors as $e) echo "<li>".htmlspecialchars($e)."</li>"; ?>
-          </ul>
+  <div class="main">
+
+    <!-- Error alert -->
+    <?php if (!empty($errors)): ?>
+    <div class="alert-err">
+      <div class="ae-ttl"><i class="fas fa-circle-exclamation" style="margin-right:5px;"></i>Please fix the following:</div>
+      <ul>
+        <?php foreach ($errors as $e): ?><li><?= htmlspecialchars($e) ?></li><?php endforeach; ?>
+      </ul>
+    </div>
+    <?php endif; ?>
+
+    <!-- Success alert -->
+    <?php if (isset($_GET['success'], $_GET['order_id'])): ?>
+    <?php
+      $orderId = intval($_GET['order_id']);
+
+      $stmt = mysqli_prepare($conn, "SELECT * FROM orders WHERE order_id=? LIMIT 1");
+      mysqli_stmt_bind_param($stmt, "i", $orderId);
+      mysqli_stmt_execute($stmt);
+      $order = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+      mysqli_stmt_close($stmt);
+
+      $stmt = mysqli_prepare($conn, "
+        SELECT bi.*, i.name AS item_name, s.name AS service_name
+        FROM bill_items bi
+        LEFT JOIN items    i ON bi.item_id    = i.id
+        LEFT JOIN services s ON bi.service_id = s.id
+        WHERE bi.order_id = ?");
+      mysqli_stmt_bind_param($stmt, "i", $orderId);
+      mysqli_stmt_execute($stmt);
+      $res = mysqli_stmt_get_result($stmt);
+      $billItems = []; $grandTotal = 0;
+      while ($row = mysqli_fetch_assoc($res)) { $billItems[] = $row; $grandTotal += floatval($row['total_price']); }
+      mysqli_stmt_close($stmt);
+
+      $order['items']        = $billItems;
+      $order['total_amount'] = $grandTotal;
+      $order['id']           = $order['order_id'];
+    ?>
+    <script>window.billData = <?= json_encode($order, JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP) ?>;</script>
+
+    <div class="alert-ok">
+      <div>
+        <div class="ao-main">
+          <i class="fas fa-circle-check" style="color:var(--green);margin-right:5px;"></i>
+          Order Created Successfully!
         </div>
-      <?php endif; ?>
-
-      <?php if (isset($_GET['success'], $_GET['order_id'])): ?>
-        <?php
-          $orderId = intval($_GET['order_id']);
-          
-          // Fetch order details
-          $stmt = mysqli_prepare($conn, "SELECT * FROM orders WHERE order_id=? LIMIT 1");
-          mysqli_stmt_bind_param($stmt, "i", $orderId);
-          mysqli_stmt_execute($stmt);
-          $res = mysqli_stmt_get_result($stmt);
-          $order = mysqli_fetch_assoc($res);
-          mysqli_stmt_close($stmt);
-
-          // Fetch bill items with item and service names
-          $itemsQuery = "
-            SELECT bi.*, 
-                   i.name as item_name, 
-                   s.name as service_name
-            FROM bill_items bi
-            LEFT JOIN items i ON bi.item_id = i.id
-            LEFT JOIN services s ON bi.service_id = s.id
-            WHERE bi.order_id = ?
-          ";
-          $stmt = mysqli_prepare($conn, $itemsQuery);
-          mysqli_stmt_bind_param($stmt, "i", $orderId);
-          mysqli_stmt_execute($stmt);
-          $res = mysqli_stmt_get_result($stmt);
-          
-          $billItems = [];
-          $grandTotal = 0;
-          while ($row = mysqli_fetch_assoc($res)) {
-              $billItems[] = $row;
-              $grandTotal += floatval($row['total_price']);
-          }
-          mysqli_stmt_close($stmt);
-
-          $order['items'] = $billItems;
-          $order['total_amount'] = $grandTotal;
-          $order['id'] = $order['order_id']; // For backward compatibility with JS
-        ?>
-        <div class="alert alert-success d-flex justify-content-between align-items-center">
-          <div>
-            <strong>✅ Order Created Successfully!</strong><br>
-            Order ID: <?= htmlspecialchars($order['order_id']) ?> | 
-            Total: <?= htmlspecialchars(number_format($grandTotal, 2)) ?> TK |
-            Status: <?= htmlspecialchars(strtoupper($order['status'])) ?>
-            <?php if (!empty($order['created_by'])): ?>
-              | Created by: <?= htmlspecialchars($order['created_by']) ?>
-            <?php endif; ?>
-          </div>
-          <div>
-            <button class="btn btn-sm btn-outline-dark me-2" id="printAgainBtn">🖨️ Print Again</button>
-            <button class="btn btn-sm btn-outline-info" id="testQRBtn">📱 Test QR</button>
-          </div>
+        <div class="ao-detail">
+          Order #<?= htmlspecialchars($order['order_id']) ?>
+          &nbsp;·&nbsp; Total: <strong>৳<?= number_format($grandTotal, 2) ?></strong>
+          &nbsp;·&nbsp; Status: <strong><?= strtoupper(htmlspecialchars($order['status'])) ?></strong>
+          <?php if (!empty($order['created_by'])): ?>
+            &nbsp;·&nbsp; By: <?= htmlspecialchars($order['created_by']) ?>
+          <?php endif; ?>
         </div>
+      </div>
+      <div class="ao-btns">
+        <button class="btn-sm" id="printAgainBtn">
+          <i class="fas fa-print" style="font-size:.62rem;"></i> Print Again
+        </button>
+        <button class="btn-sm blue" id="testQRBtn">
+          <i class="fas fa-qrcode" style="font-size:.62rem;"></i> Test QR
+        </button>
+      </div>
+    </div>
+    <?php endif; ?>
 
-        <script>
-          window.billData = <?= json_encode($order, JSON_UNESCAPED_UNICODE|JSON_HEX_TAG|JSON_HEX_AMP); ?>;
-        </script>
-      <?php endif; ?>
+    <form method="POST" id="orderForm">
 
-      <form method="POST" id="orderForm" class="mt-3">
-        
-        <!-- Customer Section -->
-        <div class="card mb-4">
-          <div class="card-header bg-light">
-            <strong>👤 Customer Information</strong>
-          </div>
-          <div class="card-body">
-            <div class="row mb-3">
-              <div class="col-md-4">
-                <label class="form-label">Customer ID (optional)</label>
-                <input type="text" name="customer_id" id="customerId" class="form-control" placeholder="Enter existing ID or leave blank">
-                <small class="text-muted">For reference only - won't override your inputs</small>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Name <span class="text-danger">*</span></label>
-                <input type="text" name="customer_name" id="customerName" class="form-control" required>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Phone <span class="text-danger">*</span></label>
-                <input type="text" name="customer_phone" id="customerPhone" class="form-control" required>
+      <!-- 1. Customer Information -->
+      <div class="sec">
+        <div class="sec-head">
+          <span class="sec-ico i-blue"><i class="fas fa-user"></i></span>
+          <span class="sec-title">Customer Information</span>
+        </div>
+        <div class="sec-body">
+          <div class="row g-3">
+
+            <div class="col-md-2">
+              <label class="lbl">Customer ID</label>
+              <input type="text" name="customer_id" id="customerId"
+                     class="fc" placeholder="Optional">
+              <div class="fhint">Won't override your inputs</div>
+            </div>
+
+            <div class="col-md-3">
+              <label class="lbl">Name <span class="req">*</span></label>
+              <div class="ac-wrap">
+                <input type="text" name="customer_name" id="customerName"
+                       class="fc" required autocomplete="off"
+                       placeholder="Search or enter name">
+                <div class="ac-drop" id="acName"></div>
               </div>
             </div>
-            <div class="row mb-3">
-              <div class="col-md-4">
-                <label class="form-label">Address</label>
-                <input type="text" name="customer_address" id="customerAddress" class="form-control">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Manufacturer</label>
-                <input type="text" name="manufacturer" id="manufacturer" class="form-control" placeholder="Enter manufacturer name">
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Box No</label>
-                <input type="text" name="box_no" id="boxNo" class="form-control" placeholder="Enter box number">
+
+            <div class="col-md-3">
+              <label class="lbl">Phone <span class="req">*</span></label>
+              <div class="ac-wrap">
+                <input type="text" name="customer_phone" id="customerPhone"
+                       class="fc" required autocomplete="off"
+                       placeholder="Search or enter phone">
+                <div class="ac-drop" id="acPhone"></div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <!-- Order Section -->
-        <div class="card mb-4">
-          <div class="card-header bg-light">
-            <strong>📋 Order Information</strong>
-          </div>
-          <div class="card-body">
-            <div class="mb-3">
-              <label class="form-label">Order Number</label>
-              <input type="text" class="form-control" id="orderNo" name="order_no" 
+            <div class="col-md-4">
+              <label class="lbl">Address</label>
+              <input type="text" name="customer_address" id="customerAddress"
+                     class="fc" placeholder="Optional">
+            </div>
+
+            <div class="col-md-4">
+              <label class="lbl">Manufacturer</label>
+              <input type="text" name="manufacturer" id="manufacturer"
+                     class="fc" placeholder="Enter manufacturer">
+            </div>
+
+            <div class="col-md-4">
+              <label class="lbl">Box No</label>
+              <input type="text" name="box_no" id="boxNo"
+                     class="fc" placeholder="Enter box number">
+            </div>
+
+            <div class="col-md-4">
+              <label class="lbl">Order Number</label>
+              <input type="text" name="order_no" id="orderNo"
+                     class="fc"
                      value="<?= htmlspecialchars($nextOrderNo) ?>" readonly>
             </div>
 
-            <!-- Items Header -->
-            <div class="row g-2 mb-2 bg-light p-2 rounded">
-              <div class="col-md-2"><strong>Items</strong></div>
-              <div class="col-md-2"><strong>Services</strong></div>
-              <div class="col-md-1"><strong>Weight (g)</strong></div>
-              <div class="col-md-2"><strong>Weight (v)</strong></div>
-              <div class="col-md-2"><strong>Gold Karat</strong></div>
-              <div class="col-md-1"><strong>Qty</strong></div>
-              <div class="col-md-2"><strong>Unit Price</strong></div>
-            </div>
-            
-            <div id="itemsSection">
-              <div class="item-row mb-3">
-                <div class="row g-2 mb-1 align-items-center border-bottom pb-2">
-                  <div class="col-md-2">
-                    <select name="item_id[]" class="form-select item-select">
-                      <option value="">Select Item</option>
-                      <?php foreach ($items as $item): ?>
-                        <option value="<?= htmlspecialchars($item['id']) ?>">
-                          <?= htmlspecialchars($item['name']) ?>
-                        </option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                  <div class="col-md-2">
-                    <select name="service_id[]" class="form-select service-select">
-                      <option value="">Select Service</option>
-                      <?php foreach ($services as $service): ?>
-                        <option value="<?= htmlspecialchars($service['id']) ?>" 
-                                data-price="<?= htmlspecialchars($service['price']) ?>">
-                          <?= htmlspecialchars($service['name']) ?>
-                          <?php if ($service['price'] > 0): ?>
-                            - <?= number_format($service['price'], 2) ?> TK
-                          <?php else: ?>
-                            (manual)
-                          <?php endif; ?>
-                        </option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                  <div class="col-md-1">
-                    <input type="number" name="weight[]" class="form-control weight-input" value="0" min="0" step="0.01">
-                  </div>
-                  <div class="col-md-2">
-                    <div class="weight-display text-secondary fw-bold small"></div>
-                  </div>
-                  <div class="col-md-2">
-                    <input type="text" name="karat[]" class="form-control" placeholder="e.g. 22K">
-                  </div>
-                  <div class="col-md-1">
-                    <input type="number" name="quantity[]" class="form-control quantity-input" value="1" min="1">
-                  </div>
-                  <div class="col-md-2 d-flex gap-1">
-                    <input type="number" name="unit_price[]" class="form-control service-price" value="0" step="0.01">
-                    <button type="button" class="btn btn-danger btn-sm remove-item" title="Remove Item">×</button>
-                  </div>
-                </div>
-                <input type="hidden" name="total_price[]" class="total-price" value="0">
-              </div>
-            </div>
-            
-            <div class="d-flex justify-content-between align-items-center mt-3 p-3 bg-light rounded">
-              <button type="button" id="addItem" class="btn btn-primary">➕ Add Item</button>
-              <h5 class="mb-0 text-success">Grand Total: <span id="grandTotal">0.00</span> TK</h5>
-            </div>
+          </div>
+        </div>
+      </div>
 
-            <!-- Payment Section -->
-            <div class="mt-4 p-3 border rounded">
-              <label class="form-label"><strong>💳 Payment Status <span class="text-danger">*</span></strong></label><br>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="payment_status" id="paid" value="paid" required>
-                <label class="form-check-label" for="paid">✅ Paid</label>
+      <!-- 2. Order Items -->
+      <div class="sec">
+        <div class="sec-head">
+          <span class="sec-ico i-violet"><i class="fas fa-list-check"></i></span>
+          <span class="sec-title">Order Items</span>
+        </div>
+
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th style="width:34px;">#</th>
+                <th style="width:170px;">Item</th>
+                <th style="width:175px;">Service</th>
+                <th style="width:100px;">Weight (g)</th>
+                <th style="width:130px;">Weight (Vori)</th>
+                <th style="width:100px;">Gold Karat</th>
+                <th style="width:70px;">Qty</th>
+                <th style="width:115px;">Unit Price</th>
+                <th style="width:36px;"></th>
+              </tr>
+            </thead>
+            <tbody id="itemsBody">
+              <tr class="item-row">
+                <td><span class="row-n">1</span></td>
+                <td>
+                  <select name="item_id[]" class="fc item-select">
+                    <option value="">Select Item</option>
+                    <?php foreach ($items as $item): ?>
+                      <option value="<?= htmlspecialchars($item['id']) ?>">
+                        <?= htmlspecialchars($item['name']) ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </td>
+                <td>
+                  <select name="service_id[]" class="fc service-select">
+                    <option value="">Select Service</option>
+                    <?php foreach ($services as $svc): ?>
+                      <option value="<?= htmlspecialchars($svc['id']) ?>"
+                              data-price="<?= htmlspecialchars($svc['price']) ?>">
+                        <?= htmlspecialchars($svc['name']) ?>
+                        <?= $svc['price'] > 0
+                            ? ' — ' . number_format($svc['price'], 2) . ' TK'
+                            : ' (manual)' ?>
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </td>
+                <td>
+                  <input type="number" name="weight[]"
+                         class="fc weight-input"
+                         value="0" min="0" step="0.01">
+                </td>
+                <td><div class="vori-disp"></div></td>
+                <td>
+                  <input type="text" name="karat[]"
+                         class="fc" placeholder="e.g. 22K">
+                </td>
+                <td>
+                  <input type="number" name="quantity[]"
+                         class="fc quantity-input"
+                         value="1" min="1">
+                </td>
+                <td>
+                  <input type="number" name="unit_price[]"
+                         class="fc service-price"
+                         value="0" step="0.01">
+                </td>
+                <td>
+                  <button type="button" class="btn-rm remove-item" title="Remove">&times;</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="tbl-foot">
+          <button type="button" id="addItem" class="btn-add-row">
+            <i class="fas fa-plus" style="font-size:.6rem;"></i> Add Row
+          </button>
+          <div class="grand-wrap">
+            <span class="grand-lbl">Grand Total</span>
+            <span class="grand-val">৳<span id="grandTotal">0.00</span></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Payment Status -->
+      <div class="sec">
+        <div class="sec-head">
+          <span class="sec-ico i-green"><i class="fas fa-credit-card"></i></span>
+          <span class="sec-title">Payment Status <span style="color:var(--red);">*</span></span>
+        </div>
+        <div class="sec-body">
+          <div class="pay-opts">
+
+            <label class="pay-opt paid">
+              <input type="radio" name="payment_status" value="paid" required>
+              <div class="pay-dot"></div>
+              <div>
+                <div class="pay-name">
+                  <i class="fas fa-circle-check" style="color:var(--green);font-size:.8rem;margin-right:4px;"></i>Paid
+                </div>
+                <div class="pay-desc">Payment received in full</div>
               </div>
-              <div class="form-check form-check-inline">
-                <input class="form-check-input" type="radio" name="payment_status" id="unpaid" value="pending">
-                <label class="form-check-label" for="unpaid">⏳ Pending</label>
+            </label>
+
+            <label class="pay-opt pending">
+              <input type="radio" name="payment_status" value="pending">
+              <div class="pay-dot"></div>
+              <div>
+                <div class="pay-name">
+                  <i class="fas fa-clock" style="color:var(--amber);font-size:.8rem;margin-right:4px;"></i>Pending
+                </div>
+                <div class="pay-desc">Payment due later</div>
               </div>
-            </div>
+            </label>
+
           </div>
         </div>
 
-        <div class="text-end">
-          <button type="reset" class="btn btn-secondary me-2">🔄 Reset</button>
-          <button type="submit" class="btn btn-success btn-lg">🚀 Submit Order</button>
+        <div class="action-bar">
+          <button type="reset" class="btn-ghost">
+            <i class="fas fa-rotate-left" style="font-size:.65rem;"></i> Reset
+          </button>
+          <button type="submit" class="btn-submit" id="submitBtn">
+            <i class="fas fa-paper-plane" style="font-size:.7rem;"></i> Submit Order
+          </button>
         </div>
-      </form>
+      </div>
 
-    </div>
-  </div>
-</div>
+    </form>
+  </div><!-- /main -->
+</div><!-- /page-shell -->
+
+<div id="qrTestArea"></div>
 
 <script>
-// Pass PHP data to JavaScript
-const dbItems = <?= json_encode($items) ?>;
+const dbItems    = <?= json_encode($items) ?>;
 const dbServices = <?= json_encode($services) ?>;
 
-// Build options HTML for dynamic row creation
-function buildItemOptions() {
-  let html = '<option value="">Select Item</option>';
-  dbItems.forEach(item => {
-    html += `<option value="${item.id}">${escapeHtml(item.name)}</option>`;
-  });
-  return html;
+/* ── Utilities ──────────────────────────────────────────────── */
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                  .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function buildServiceOptions() {
-  let html = '<option value="">Select Service</option>';
-  dbServices.forEach(service => {
-    const priceText = service.price > 0 
-      ? ` - ${parseFloat(service.price).toFixed(2)} TK` 
-      : ' (manual)';
-    html += `<option value="${service.id}" data-price="${service.price}">${escapeHtml(service.name)}${priceText}</option>`;
-  });
-  return html;
+function buildItemOpts() {
+  return '<option value="">Select Item</option>' +
+    dbItems.map(i => `<option value="${i.id}">${escapeHtml(i.name)}</option>`).join('');
 }
 
-function escapeHtml(str) {
-  if (str === null || str === undefined) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+function buildSvcOpts() {
+  return '<option value="">Select Service</option>' +
+    dbServices.map(s => {
+      const t = parseFloat(s.price) > 0 ? ` — ${parseFloat(s.price).toFixed(2)} TK` : ' (manual)';
+      return `<option value="${s.id}" data-price="${s.price}">${escapeHtml(s.name)}${t}</option>`;
+    }).join('');
 }
 
-function convertGramToVoriAna(gram) {
-  if (!gram || gram <= 0) return '';
-  
-  const totalPoints = Math.round((gram / 11.664) * 16 * 6 * 10);
-  const bhori = Math.floor(totalPoints / 960);
-  const remainingPoints = totalPoints % 960;
-  const ana = Math.floor(remainingPoints / 60);
-  const remainingAfterAna = remainingPoints % 60;
-  const roti = Math.floor(remainingAfterAna / 10);
-  const point = remainingAfterAna % 10;
-  
-  return `V:${bhori} A:${ana} R:${roti} P:${point}`;
+/* ── Weight: gram → Vori Ana Roti Point ──────────────────────── */
+function gramToVori(g) {
+  if (!g || g <= 0) return '';
+  const tp = Math.round((g / 11.664) * 16 * 6 * 10);
+  const b  = Math.floor(tp / 960),   r1 = tp % 960;
+  const a  = Math.floor(r1 / 60),    r2 = r1 % 60;
+  const r  = Math.floor(r2 / 10),    p  = r2 % 10;
+  return `V:${b} A:${a} R:${r} P:${p}`;
 }
 
-function updateAllConversions() {
-  const itemRows = document.querySelectorAll('.item-row');
-  
-  itemRows.forEach((row) => {
-    const weightInput = row.querySelector('.weight-input');
-    const weightDisplay = row.querySelector('.weight-display');
-    const gram = parseFloat(weightInput.value) || 0;
-    
-    if (gram > 0) {
-      const conversion = convertGramToVoriAna(gram);
-      weightDisplay.textContent = conversion;
-    } else {
-      weightDisplay.textContent = '';
-    }
+function refreshConversions() {
+  document.querySelectorAll('.item-row').forEach(row => {
+    const g = parseFloat(row.querySelector('.weight-input').value) || 0;
+    row.querySelector('.vori-disp').textContent = g > 0 ? gramToVori(g) : '';
   });
 }
 
+/* ── Row totals ─────────────────────────────────────────────── */
 function updateRow(row) {
-  const qty = parseFloat(row.querySelector('.quantity-input').value) || 0;
-  const unit = parseFloat(row.querySelector('.service-price').value) || 0;
-  row.querySelector('.total-price').value = (qty * unit).toFixed(2);
+  const qty  = parseFloat(row.querySelector('.quantity-input').value) || 0;
+  const unit = parseFloat(row.querySelector('.service-price').value)  || 0;
+  row.querySelector('.tp-hidden').value = (qty * unit).toFixed(2);
   updateGrand();
 }
 
 function updateGrand() {
-  let total = 0;
-  document.querySelectorAll('.total-price').forEach(el => total += parseFloat(el.value) || 0);
-  document.getElementById('grandTotal').textContent = total.toFixed(2);
+  let t = 0;
+  document.querySelectorAll('.tp-hidden').forEach(el => t += parseFloat(el.value) || 0);
+  document.getElementById('grandTotal').textContent = t.toFixed(2);
 }
 
-document.addEventListener('change', e => {
+/* ── Row numbering ──────────────────────────────────────────── */
+function renumber() {
+  document.querySelectorAll('.item-row').forEach((row, i) => {
+    const n = row.querySelector('.row-n');
+    if (n) n.textContent = i + 1;
+  });
+}
+
+/* ── First row: attach hidden total_price ───────────────────── */
+(function() {
+  const r = document.querySelector('.item-row');
+  const h = Object.assign(document.createElement('input'),
+    { type:'hidden', name:'total_price[]', className:'tp-hidden', value:'0' });
+  r.appendChild(h);
+})();
+
+/* ── Add row ────────────────────────────────────────────────── */
+document.getElementById('addItem').addEventListener('click', () => {
+  const tr = document.createElement('tr');
+  tr.className = 'item-row';
+  tr.innerHTML = `
+    <td><span class="row-n">?</span></td>
+    <td><select name="item_id[]" class="fc item-select">${buildItemOpts()}</select></td>
+    <td><select name="service_id[]" class="fc service-select">${buildSvcOpts()}</select></td>
+    <td><input type="number" name="weight[]" class="fc weight-input" value="0" min="0" step="0.01"></td>
+    <td><div class="vori-disp"></div></td>
+    <td><input type="text" name="karat[]" class="fc" placeholder="e.g. 22K"></td>
+    <td><input type="number" name="quantity[]" class="fc quantity-input" value="1" min="1"></td>
+    <td><input type="number" name="unit_price[]" class="fc service-price" value="0" step="0.01"></td>
+    <td><button type="button" class="btn-rm remove-item" title="Remove">&times;</button></td>`;
+  const h = Object.assign(document.createElement('input'),
+    { type:'hidden', name:'total_price[]', className:'tp-hidden', value:'0' });
+  tr.appendChild(h);
+  document.getElementById('itemsBody').appendChild(tr);
+  renumber(); refreshConversions();
+});
+
+/* ── Delegated events on table ──────────────────────────────── */
+const tbody = document.getElementById('itemsBody');
+
+tbody.addEventListener('change', e => {
   if (e.target.classList.contains('service-select')) {
     const row = e.target.closest('.item-row');
-    const unitPriceInput = row.querySelector('.service-price');
-    
-    if (e.target.value !== '') {
-      const selectedOption = e.target.options[e.target.selectedIndex];
-      const price = parseFloat(selectedOption.getAttribute('data-price')) || 0;
-      unitPriceInput.value = price.toFixed(2);
+    const opt = e.target.options[e.target.selectedIndex];
+    if (opt && e.target.value) {
+      row.querySelector('.service-price').value = (parseFloat(opt.dataset.price) || 0).toFixed(2);
       updateRow(row);
     }
   }
 });
 
-document.addEventListener('input', e => {
-  if (e.target.classList.contains('quantity-input') || e.target.classList.contains('service-price')) {
-    updateRow(e.target.closest('.item-row'));
-  }
-  
-  if (e.target.classList.contains('weight-input')) {
-    updateAllConversions();
-  }
+tbody.addEventListener('input', e => {
+  const row = e.target.closest('.item-row');
+  if (!row) return;
+  if (e.target.classList.contains('quantity-input') ||
+      e.target.classList.contains('service-price'))  updateRow(row);
+  if (e.target.classList.contains('weight-input'))   refreshConversions();
 });
 
-document.addEventListener('click', e => {
+tbody.addEventListener('click', e => {
   if (e.target.classList.contains('remove-item')) {
     const rows = document.querySelectorAll('.item-row');
     if (rows.length > 1) {
       e.target.closest('.item-row').remove();
-      updateGrand();
-      updateAllConversions();
+      renumber(); updateGrand(); refreshConversions();
     } else {
-      alert('At least one item is required.');
+      alert('At least one item row is required.');
     }
   }
 });
 
-document.getElementById('addItem').addEventListener('click', () => {
-  const itemRowHtml = `
-  <div class="item-row mb-3">
-    <div class="row g-2 mb-1 align-items-center border-bottom pb-2">
-      <div class="col-md-2">
-        <select name="item_id[]" class="form-select item-select">
-          ${buildItemOptions()}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <select name="service_id[]" class="form-select service-select">
-          ${buildServiceOptions()}
-        </select>
-      </div>
-      <div class="col-md-1">
-        <input type="number" name="weight[]" class="form-control weight-input" value="0" min="0" step="0.01">
-      </div>
-      <div class="col-md-2">
-        <div class="weight-display text-secondary fw-bold small"></div>
-      </div>
-      <div class="col-md-2">
-        <input type="text" name="karat[]" class="form-control" placeholder="e.g. 22K">
-      </div>
-      <div class="col-md-1">
-        <input type="number" name="quantity[]" class="form-control quantity-input" value="1" min="1">
-      </div>
-      <div class="col-md-2 d-flex gap-1">
-        <input type="number" name="unit_price[]" class="form-control service-price" value="0" step="0.01">
-        <button type="button" class="btn btn-danger btn-sm remove-item" title="Remove Item">×</button>
-      </div>
-    </div>
-    <input type="hidden" name="total_price[]" class="total-price" value="0">
-  </div>`;
-  document.getElementById('itemsSection').insertAdjacentHTML('beforeend', itemRowHtml);
-  updateAllConversions();
-});
+/* ── Autocomplete factory ───────────────────────────────────── */
+function makeAC(inp, drop, onPick) {
+  let timer, res = [], idx = -1;
+  const show = () => drop.classList.add('open');
+  const hide = () => { drop.classList.remove('open'); idx = -1; };
 
-// MODIFIED: Customer autocomplete - fills fields for convenience but doesn't override on submit
-(function() {
-  const customerNameInput = document.getElementById('customerName');
-  const customerIdInput = document.getElementById('customerId');
-  const customerPhoneInput = document.getElementById('customerPhone');
-  const customerAddressInput = document.getElementById('customerAddress');
-  const manufacturerInput = document.getElementById('manufacturer');
-  
-  const wrapper = document.createElement('div');
-  wrapper.className = 'autocomplete-wrapper';
-  customerNameInput.parentNode.insertBefore(wrapper, customerNameInput);
-  wrapper.appendChild(customerNameInput);
-  
-  const suggestionsDiv = document.createElement('div');
-  suggestionsDiv.className = 'autocomplete-suggestions';
-  suggestionsDiv.id = 'customerSuggestions';
-  wrapper.appendChild(suggestionsDiv);
-  
-  let searchTimeout;
-  let selectedIndex = -1;
-  let suggestions = [];
-  
-  function searchCustomers(query) {
-    if (query.length < 1) {
-      hideSuggestions();
-      return;
-    }
-    
-    suggestionsDiv.innerHTML = '<div class="autocomplete-loading">🔍 Searching...</div>';
-    suggestionsDiv.classList.add('active');
-    
-    fetch('search_customers.php?query=' + encodeURIComponent(query))
-      .then(response => response.json())
-      .then(data => {
-        if (data.success && data.data.length > 0) {
-          suggestions = data.data;
-          displaySuggestions(suggestions);
-        } else {
-          suggestionsDiv.innerHTML = '<div class="autocomplete-no-results">No customers found</div>';
-        }
-      })
-      .catch(error => {
-        console.error('Search error:', error);
-        hideSuggestions();
-      });
-  }
-  
-  function displaySuggestions(customers) {
-    suggestionsDiv.innerHTML = '';
-    selectedIndex = -1;
-    
-    customers.forEach((customer, index) => {
-      const item = document.createElement('div');
-      item.className = 'autocomplete-item';
-      item.dataset.index = index;
-      
-      item.innerHTML = `
-        <div class="customer-name">
-          <span class="customer-id">ID: ${escapeHtml(customer.id)}</span>
-          ${escapeHtml(customer.name)}
+  function render(list) {
+    res = list; drop.innerHTML = '';
+    if (!list.length) { drop.innerHTML = '<div class="ac-hint">No customers found</div>'; show(); return; }
+    list.forEach((c, i) => {
+      const d = document.createElement('div');
+      d.className = 'ac-item';
+      d.innerHTML = `
+        <div class="ac-name">
+          <span class="ac-badge">ID: ${escapeHtml(c.id)}</span>
+          ${escapeHtml(c.name)}
         </div>
-        <div class="customer-details">
-          📱 ${escapeHtml(customer.phone)} 
-          ${customer.address ? '| 📍 ' + escapeHtml(customer.address) : ''}
-        </div>
-      `;
-      
-      item.addEventListener('click', () => selectCustomer(customer));
-      suggestionsDiv.appendChild(item);
+        <div class="ac-sub">
+          <i class="fas fa-phone" style="font-size:.6rem;margin-right:3px;"></i>${escapeHtml(c.phone)}
+          ${c.address ? ' &nbsp;·&nbsp; ' + escapeHtml(c.address) : ''}
+        </div>`;
+      d.addEventListener('mousedown', ev => { ev.preventDefault(); onPick(c); hide(); });
+      drop.appendChild(d);
     });
-    
-    suggestionsDiv.classList.add('active');
+    show();
   }
-  
-  function selectCustomer(customer) {
-    // Fill fields for convenience - user can modify any field
-    customerIdInput.value = customer.id;
-    customerNameInput.value = customer.name;
-    customerPhoneInput.value = customer.phone;
-    customerAddressInput.value = customer.address || '';
-    if (customer.manufacturer) {
-      manufacturerInput.value = customer.manufacturer;
-    }
-    hideSuggestions();
-    
-    customerNameInput.style.background = '#d4edda';
-    setTimeout(() => {
-      customerNameInput.style.background = '';
-    }, 500);
-  }
-  
-  function hideSuggestions() {
-    suggestionsDiv.classList.remove('active');
-    selectedIndex = -1;
-  }
-  
-  function handleKeyNavigation(e) {
-    const items = suggestionsDiv.querySelectorAll('.autocomplete-item');
-    
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
-      updateSelection(items);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      selectedIndex = Math.max(selectedIndex - 1, -1);
-      updateSelection(items);
-    } else if (e.key === 'Enter' && selectedIndex >= 0) {
-      e.preventDefault();
-      if (suggestions[selectedIndex]) {
-        selectCustomer(suggestions[selectedIndex]);
-      }
-    } else if (e.key === 'Escape') {
-      hideSuggestions();
-    }
-  }
-  
-  function updateSelection(items) {
-    items.forEach((item, index) => {
-      if (index === selectedIndex) {
-        item.style.background = '#e7f3ff';
-      } else {
-        item.style.background = '';
-      }
-    });
-    
-    if (selectedIndex >= 0 && items[selectedIndex]) {
-      items[selectedIndex].scrollIntoView({ block: 'nearest' });
-    }
-  }
-  
-  customerNameInput.addEventListener('input', function(e) {
-    const query = this.value.trim();
-    clearTimeout(searchTimeout);
-    
-    if (query.length >= 1) {
-      searchTimeout = setTimeout(() => {
-        searchCustomers(query);
-      }, 300);
-    } else {
-      hideSuggestions();
-    }
-  });
-  
-  customerNameInput.addEventListener('keydown', handleKeyNavigation);
-  
-  document.addEventListener('click', function(e) {
-    if (!wrapper.contains(e.target)) {
-      hideSuggestions();
-    }
-  });
-  
-})();
 
-// Phone Number Autocomplete
-(function() {
-  const customerPhoneInput = document.getElementById('customerPhone');
-  const customerIdInput = document.getElementById('customerId');
-  const customerNameInput = document.getElementById('customerName');
-  const customerAddressInput = document.getElementById('customerAddress');
-  const manufacturerInput = document.getElementById('manufacturer');
-  
-  const wrapper = document.createElement('div');
-  wrapper.className = 'autocomplete-wrapper';
-  customerPhoneInput.parentNode.insertBefore(wrapper, customerPhoneInput);
-  wrapper.appendChild(customerPhoneInput);
-  
-  const suggestionsDiv = document.createElement('div');
-  suggestionsDiv.className = 'autocomplete-suggestions';
-  suggestionsDiv.id = 'phoneSuggestions';
-  wrapper.appendChild(suggestionsDiv);
-  
-  let searchTimeout;
-  let selectedIndex = -1;
-  let suggestions = [];
-  
-  function searchCustomers(query) {
-    if (query.length < 1) {
-      hideSuggestions();
-      return;
-    }
-    
-    suggestionsDiv.innerHTML = '<div class="autocomplete-loading">🔍 Searching...</div>';
-    suggestionsDiv.classList.add('active');
-    
-    fetch('search_customers.php?query=' + encodeURIComponent(query))
-      .then(response => response.json())
-      .then(data => {
-        if (data.success && data.data.length > 0) {
-          suggestions = data.data;
-          displaySuggestions(suggestions);
-        } else {
-          suggestionsDiv.innerHTML = '<div class="autocomplete-no-results">No customers found</div>';
-        }
-      })
-      .catch(error => {
-        console.error('Search error:', error);
-        hideSuggestions();
-      });
-  }
-  
-  function displaySuggestions(customers) {
-    suggestionsDiv.innerHTML = '';
-    selectedIndex = -1;
-    
-    customers.forEach((customer, index) => {
-      const item = document.createElement('div');
-      item.className = 'autocomplete-item';
-      item.dataset.index = index;
-      
-      item.innerHTML = `
-        <div class="customer-name">
-          <span class="customer-id">ID: ${escapeHtml(customer.id)}</span>
-          ${escapeHtml(customer.name)}
-        </div>
-        <div class="customer-details">
-          📱 ${escapeHtml(customer.phone)} 
-          ${customer.address ? '| 📍 ' + escapeHtml(customer.address) : ''}
-        </div>
-      `;
-      
-      item.addEventListener('click', () => selectCustomer(customer));
-      suggestionsDiv.appendChild(item);
-    });
-    
-    suggestionsDiv.classList.add('active');
-  }
-  
-  function selectCustomer(customer) {
-    customerIdInput.value = customer.id;
-    customerNameInput.value = customer.name;
-    customerPhoneInput.value = customer.phone;
-    customerAddressInput.value = customer.address || '';
-    if (customer.manufacturer) {
-      manufacturerInput.value = customer.manufacturer;
-    }
-    hideSuggestions();
-    
-    customerPhoneInput.style.background = '#d4edda';
-    setTimeout(() => {
-      customerPhoneInput.style.background = '';
-    }, 500);
-  }
-  
-  function hideSuggestions() {
-    suggestionsDiv.classList.remove('active');
-    selectedIndex = -1;
-  }
-  
-  function handleKeyNavigation(e) {
-    const items = suggestionsDiv.querySelectorAll('.autocomplete-item');
-    
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
-      updateSelection(items);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      selectedIndex = Math.max(selectedIndex - 1, -1);
-      updateSelection(items);
-    } else if (e.key === 'Enter' && selectedIndex >= 0) {
-      e.preventDefault();
-      if (suggestions[selectedIndex]) {
-        selectCustomer(suggestions[selectedIndex]);
-      }
-    } else if (e.key === 'Escape') {
-      hideSuggestions();
-    }
-  }
-  
-  function updateSelection(items) {
-    items.forEach((item, index) => {
-      if (index === selectedIndex) {
-        item.style.background = '#e7f3ff';
-      } else {
-        item.style.background = '';
-      }
-    });
-    
-    if (selectedIndex >= 0 && items[selectedIndex]) {
-      items[selectedIndex].scrollIntoView({ block: 'nearest' });
-    }
-  }
-  
-  customerPhoneInput.addEventListener('input', function(e) {
-    const query = this.value.trim();
-    clearTimeout(searchTimeout);
-    
-    if (query.length >= 1) {
-      searchTimeout = setTimeout(() => {
-        searchCustomers(query);
-      }, 300);
-    } else {
-      hideSuggestions();
-    }
+  inp.addEventListener('input', function() {
+    const q = this.value.trim();
+    clearTimeout(timer);
+    if (!q) { hide(); return; }
+    drop.innerHTML = '<div class="ac-hint"><i class="fas fa-spinner fa-spin" style="font-size:.65rem;"></i> Searching…</div>';
+    show();
+    timer = setTimeout(() => {
+      fetch('search_customers.php?query=' + encodeURIComponent(q))
+        .then(r => r.json())
+        .then(d => d.success ? render(d.data) : render([]))
+        .catch(() => hide());
+    }, 280);
   });
-  
-  customerPhoneInput.addEventListener('keydown', handleKeyNavigation);
-  
-  document.addEventListener('click', function(e) {
-    if (!wrapper.contains(e.target)) {
-      hideSuggestions();
-    }
-  });
-  
-})();
 
-// Customer ID search (fetch by ID)
-document.getElementById('customerId').addEventListener('blur', function(){
+  inp.addEventListener('keydown', function(e) {
+    const items = drop.querySelectorAll('.ac-item');
+    if (e.key === 'ArrowDown')  { e.preventDefault(); idx = Math.min(idx+1, items.length-1); }
+    else if (e.key === 'ArrowUp')  { e.preventDefault(); idx = Math.max(idx-1, -1); }
+    else if (e.key === 'Enter' && idx >= 0) { e.preventDefault(); if (res[idx]) { onPick(res[idx]); hide(); } }
+    else if (e.key === 'Escape') hide();
+    items.forEach((it, i) => it.classList.toggle('sel', i === idx));
+  });
+
+  document.addEventListener('click', e => {
+    if (!inp.contains(e.target) && !drop.contains(e.target)) hide();
+  });
+}
+
+function fillCustomer(c) {
+  document.getElementById('customerId').value      = c.id        || '';
+  document.getElementById('customerName').value    = c.name      || '';
+  document.getElementById('customerPhone').value   = c.phone     || '';
+  document.getElementById('customerAddress').value = c.address   || '';
+  if (c.manufacturer) document.getElementById('manufacturer').value = c.manufacturer;
+}
+
+makeAC(document.getElementById('customerName'),  document.getElementById('acName'),  fillCustomer);
+makeAC(document.getElementById('customerPhone'), document.getElementById('acPhone'), fillCustomer);
+
+/* ── Customer ID blur lookup ────────────────────────────────── */
+document.getElementById('customerId').addEventListener('blur', function() {
   const id = this.value.trim();
   if (!id) return;
-  
   fetch('fetch_customer_owc.php?id=' + encodeURIComponent(id))
     .then(r => r.json())
     .then(j => {
-      if(j.success) {
-        // Auto-fill fields for convenience - user can still modify
-        document.getElementById('customerName').value = j.data.name || '';
-        document.getElementById('customerPhone').value = j.data.phone || '';
-        document.getElementById('customerAddress').value = j.data.address || '';
-        if (j.data.manufacturer) {
-          document.getElementById('manufacturer').value = j.data.manufacturer;
-        }
-        
-        // Visual feedback
-        const customerIdField = document.getElementById('customerId');
-        customerIdField.style.background = '#d4edda';
-        setTimeout(() => {
-          customerIdField.style.background = '';
-        }, 500);
+      if (j.success) {
+        fillCustomer(j.data);
+        this.style.borderColor = 'var(--green)';
+        setTimeout(() => this.style.borderColor = '', 800);
       } else {
-        // ID not found
-        alert('Customer ID not found in database');
-        document.getElementById('customerId').value = '';
-        document.getElementById('customerId').focus();
+        alert('Customer ID not found');
+        this.value = ''; this.focus();
       }
     })
-    .catch(err => console.error('Customer fetch error:', err));
+    .catch(() => {});
 });
 
-// QR Code Generation
+/* ── QR Code (unchanged logic from original) ───────────────── */
 function generateQRCode(bill) {
-  return new Promise((resolve) => {
+  return new Promise(resolve => {
     try {
-      const baseUrl = window.location.origin + window.location.pathname.replace('order.php', '');
-      const qrText = `${baseUrl}view_bill.php?id=${bill.id || ''}`;
-      const qr = qrcode(0, 'M');
-      qr.addData(qrText);
+      const base = window.location.origin + window.location.pathname.replace('order.php','');
+      const qr = qrcode(0,'M');
+      qr.addData(`${base}view_bill.php?id=${bill.id||''}`);
       qr.make();
-      
+
       try {
-        const qrSvg = qr.createSvgTag(4, 2);
+        const svg = qr.createSvgTag(4,2);
         const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        const img = new Image();
-        
-        canvas.width = 120;
-        canvas.height = 120;
-        
-        const svgBlob = new Blob([qrSvg], {type: 'image/svg+xml;charset=utf-8'});
-        const url = URL.createObjectURL(svgBlob);
-        
-        img.onload = function() {
-          try {
-            ctx.fillStyle = 'white';
-            ctx.fillRect(0, 0, 120, 120);
-            ctx.drawImage(img, 0, 0, 120, 120);
-            const dataURL = canvas.toDataURL('image/png', 0.9);
-            URL.revokeObjectURL(url);
-            resolve(dataURL);
-          } catch (drawError) {
-            URL.revokeObjectURL(url);
-            fallbackQRGeneration();
-          }
-        };
-        
-        img.onerror = function() {
+        canvas.width = canvas.height = 120;
+        const ctx = canvas.getContext('2d'), img = new Image();
+        const url = URL.createObjectURL(new Blob([svg], {type:'image/svg+xml;charset=utf-8'}));
+        img.onload = () => {
+          ctx.fillStyle='white'; ctx.fillRect(0,0,120,120);
+          ctx.drawImage(img,0,0,120,120);
           URL.revokeObjectURL(url);
-          fallbackQRGeneration();
+          resolve(canvas.toDataURL('image/png',0.9));
         };
-        
-        setTimeout(() => {
-          if (!img.complete) {
-            URL.revokeObjectURL(url);
-            fallbackQRGeneration();
-          }
-        }, 3000);
-        
+        img.onerror = () => { URL.revokeObjectURL(url); fallback(); };
+        setTimeout(() => { if (!img.complete) { URL.revokeObjectURL(url); fallback(); } }, 3000);
         img.src = url;
-        
-      } catch (svgError) {
-        fallbackQRGeneration();
-      }
-      
-      function fallbackQRGeneration() {
+      } catch(e) { fallback(); }
+
+      function fallback() {
         try {
-          const modules = qr.getModuleCount();
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          const cellSize = Math.max(2, Math.floor(120 / modules));
-          
-          canvas.width = cellSize * modules;
-          canvas.height = cellSize * modules;
-          
-          ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          
-          ctx.fillStyle = 'black';
-          for (let row = 0; row < modules; row++) {
-            for (let col = 0; col < modules; col++) {
-              if (qr.isDark(row, col)) {
-                ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
-              }
-            }
-          }
-          
-          resolve(canvas.toDataURL('image/png', 0.9));
-        } catch (fallbackError) {
-          resolve(null);
-        }
+          const m = qr.getModuleCount(), cs = Math.max(2,Math.floor(120/m));
+          const c = document.createElement('canvas');
+          c.width = c.height = cs*m;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle='white'; ctx.fillRect(0,0,c.width,c.height);
+          ctx.fillStyle='black';
+          for(let r=0;r<m;r++) for(let x=0;x<m;x++)
+            if(qr.isDark(r,x)) ctx.fillRect(x*cs,r*cs,cs,cs);
+          resolve(c.toDataURL('image/png',0.9));
+        } catch(e) { resolve(null); }
       }
-      
-    } catch (error) {
-      resolve(null);
-    }
+    } catch(e) { resolve(null); }
   });
 }
 
-function testQRGeneration(bill) {
-  generateQRCode(bill).then(dataURL => {
-    const testArea = document.getElementById('qrTestArea');
-    if (dataURL) {
-      testArea.innerHTML = `<img src="${dataURL}" style="width: 100%; height: 100%; object-fit: contain;" alt="QR Test">`;
-      testArea.style.display = 'block';
-      setTimeout(() => testArea.style.display = 'none', 10000);
-    } else {
-      testArea.innerHTML = '<div style="color: red; font-size: 10px; text-align: center; padding: 10px;">QR Failed</div>';
-      testArea.style.display = 'block';
-      setTimeout(() => testArea.style.display = 'none', 5000);
-    }
+/* ── 80mm Receipt ───────────────────────────────────────────── */
+function buildReceiptHtml(bill, qrURL) {
+  let items = '';
+  (bill.items||[]).forEach((item, i) => {
+    const w = parseFloat(item.weight)||0;
+    items += `Purpose: ${escapeHtml(item.service_name||'')} | ${escapeHtml(item.karat||'')}<br>`;
+    items += `Item: ${escapeHtml(item.item_name||item.service_name||'')} | Qty: ${escapeHtml(item.quantity||'')}<br>`;
+    items += `Weight: ${w.toFixed(2)} gm [${gramToVori(w)}]<br>`;
+    if (i < bill.items.length-1) items += '<br>';
   });
+  const mfr = (bill.manufacturer||'').trim() ? `Manufacturer: ${escapeHtml(bill.manufacturer)}<br>` : '';
+  const box = (bill.box_no||'').trim()        ? `Box No: ${escapeHtml(bill.box_no)}<br>`           : '';
+  const qr  = qrURL && qrURL.startsWith('data:image')
+    ? `<div class="c" style="margin:8px 0;background:white;padding:4px;border:1px solid #ddd;">
+         <div style="font-size:9px;margin-bottom:2px;color:#666;">Scan for details</div>
+         <img src="${qrURL}" style="width:85px;height:85px;display:block;margin:0 auto;">
+       </div>`
+    : `<div class="c" style="margin:8px 0;padding:4px;border:2px dashed #ccc;">
+         <div style="width:60px;height:60px;border:2px dashed #999;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999;">QR</div>
+       </div>`;
+  const d = new Date().toLocaleString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:true});
+  return `<html><head><meta charset="utf-8"><style>
+    body{font-family:Arial,sans-serif;font-size:12px;margin:4px;line-height:1.3;max-width:80mm;}
+    .c{text-align:center;} hr{border:none;border-top:1px dashed #000;margin:4px 0;}
+    .logo{width:66mm;height:auto;display:block;margin:0 auto;max-width:100%;}
+    .ft{text-align:center;margin-top:4px;font-size:10px;color:#666;}
+  </style></head><body>
+  <div class="c"><img src="receiptheader.png" class="logo" onerror="this.style.display='none';"></div>
+  <hr>
+  <div><strong>TOKEN</strong><br>Date: ${d}<br>Token No: ${escapeHtml(bill.id||bill.order_id||'')}<br>
+    Customer ID: ${escapeHtml(bill.customer_id||'N/A')}<br>
+    Name: ${escapeHtml(bill.customer_name||'')}<br>Mobile: ${escapeHtml(bill.customer_phone||'')}<br>
+    ${bill.customer_address?`Address: ${escapeHtml(bill.customer_address)}<br>`:''}${mfr}${box}
+  </div>
+  <hr><div><strong>ITEMS:</strong><br>${items}</div>
+  <hr><div><strong>Total Charge: ${parseFloat(bill.total_amount||0).toFixed(2)} Tk</strong><br>
+    Payment Status: ${escapeHtml((bill.status||'').toUpperCase())}
+  </div><hr>${qr}
+  <div class="ft">THANK YOU | HAVE A GOOD DAY | CDev</div>
+  </body></html>`;
 }
 
-// 80mm Receipt HTML
-function buildReceiptHtml(bill, qrCodeDataURL = null) {
-  let itemsHtml = '';
-  if (Array.isArray(bill.items)) {
-    bill.items.forEach((item, index) => {
-      const weight = parseFloat(item.weight) || 0;
-      const voriAnaRoti = convertGramToVoriAna(weight);
-      
-      const itemName = item.item_name || item.service_name || '';
-      
-      itemsHtml += `Purpose: ${escapeHtml(item.service_name || '')} | ${escapeHtml(item.karat || '')}<br>`;
-      itemsHtml += `Item: ${escapeHtml(itemName)} | Qty: ${escapeHtml(item.quantity || '')}<br>`;
-      itemsHtml += `Weight: ${weight.toFixed(2)} gm [${voriAnaRoti}]<br>`;
-      if (index < bill.items.length - 1) itemsHtml += '<br>';
-    });
-  }
-
-  let manufacturerHtml = bill.manufacturer && bill.manufacturer.trim() !== '' 
-    ? `Manufacturer: ${escapeHtml(bill.manufacturer)}<br>` : '';
-  let boxNoHtml = bill.box_no && bill.box_no.trim() !== '' 
-    ? `Box No: ${escapeHtml(bill.box_no)}<br>` : '';
-
-  let qrCodeHtml = '';
-  if (qrCodeDataURL && qrCodeDataURL.startsWith('data:image')) {
-    qrCodeHtml = `
-    <div class="center" style="margin: 8px 0; background: white; padding: 4px; border: 1px solid #ddd;">
-      <div style="font-size: 9px; margin-bottom: 2px; color: #666;">Scan for details</div>
-      <img src="${qrCodeDataURL}" alt="QR Code" style="width: 85px; height: 85px; display: block; margin: 0 auto;">
-    </div>`;
-  } else {
-    qrCodeHtml = `
-    <div class="center" style="margin: 8px 0; background: #f8f9fa; padding: 4px; border: 2px dashed #ccc;">
-      <div style="font-size: 8px; color: #999;">QR Code Here</div>
-      <div style="width: 60px; height: 60px; border: 2px dashed #999; margin: 0 auto; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #999;">QR</div>
-    </div>`;
-  }
-
-  const currentDate = new Date().toLocaleString('en-GB', {
-    day: '2-digit',
-    month: '2-digit', 
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
-
-  return `
-  <html>
-  <head>
-    <meta charset="utf-8">
-    <style>
-      @import url('https://fonts.googleapis.com/css2?family=Alex+Brush&display=swap');
-      body { 
-        font-family: Arial, sans-serif; 
-        font-size: 12px; 
-        margin: 4px; 
-        line-height: 1.3;
-        max-width: 80mm;
-      }
-      .center { text-align: center; }
-      .company-logo { 
-        width: 66mm; 
-        height: auto; 
-        display: block; 
-        margin: 0 auto; 
-        max-width: 100%;
-      }
-      hr { 
-        border: none; 
-        border-top: 1px dashed #000; 
-        margin: 4px 0; 
-      }
-      .footer { 
-        text-align: center; 
-        margin-top: 4px; 
-        font-size: 10px; 
-        color: #666;
-      }
-      .total-line { 
-        font-weight: bold; 
-        font-size: 14px; 
-        text-align: left; 
-        margin: 0; 
-        padding: 0; 
-      }
-      .item-line { 
-        font-size: 12px; 
-        margin: 0; 
-        padding: 0; 
-        line-height: 1.2; 
-      }
-      .token-line { 
-        font-size: 11px; 
-        margin: 0; 
-        padding: 0; 
-        line-height: 1.4; 
-      }
-    </style>
-  </head>
-  <body>
-    <div class="center">
-      <img src="receiptheader.png" alt="Rajaiswari" class="company-logo" onerror="this.style.display='none';">
-    </div>
-    <hr>
-    <div class="token-line">
-      <strong>TOKEN</strong><br>
-      Date: ${currentDate}<br>
-      Token No: ${escapeHtml(bill.id || bill.order_id || '')}<br>
-      Customer ID: ${escapeHtml(bill.customer_id || 'N/A')}<br>
-      Name: ${escapeHtml(bill.customer_name || '')}<br>
-      Mobile: ${escapeHtml(bill.customer_phone || '')}<br>
-      ${bill.customer_address ? `Address: ${escapeHtml(bill.customer_address)}<br>` : ''}
-      ${manufacturerHtml}${boxNoHtml}
-    </div>
-    <hr>
-    <div class="item-line">
-      <strong>ITEMS:</strong><br>
-      ${itemsHtml}
-    </div>
-    <hr>
-    <div class="total-line">
-      Total Charge: ${parseFloat(bill.total_amount || 0).toFixed(2)} Tk<br>
-      Payment Status: ${escapeHtml((bill.status || '').toUpperCase())}
-    </div>
-    <hr>
-    ${qrCodeHtml}
-    <div class="footer">
-      THANK YOU | HAVE A GOOD DAY | CDev
-    </div>
-  </body>
-  </html>`;
-}
-
-// A4 Format Receipt HTML
+/* ── A4 Receipt ─────────────────────────────────────────────── */
 function buildA4ReceiptHtml(bill) {
   let itemsHtml = '';
-  if (Array.isArray(bill.items)) {
-    bill.items.forEach((item) => {
-      const weight = parseFloat(item.weight) || 0;
-      const itemName = item.item_name || '';
-      const karat = item.karat || '';
-      const serviceName = item.service_name || '';
-      
-      itemsHtml += `
-        <tr>
-          <td>${escapeHtml(itemName)}</td>
-          <td>${escapeHtml(serviceName)}</td>
-          <td>${weight.toFixed(2)}</td>
-          <td>${escapeHtml(karat)}</td>
-          <td>&nbsp;</td>
-        </tr>`;
-    });
-  }
-
-  // Add empty rows to fill space
-  const emptyRowsNeeded = Math.max(0, 3 - (bill.items ? bill.items.length : 0));
-  for (let i = 0; i < emptyRowsNeeded; i++) {
-    itemsHtml += `
-      <tr>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-      </tr>`;
-  }
-
-  const currentDate = new Date().toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: '2-digit', 
-    year: 'numeric'
+  (bill.items||[]).forEach(item => {
+    const weight = parseFloat(item.weight) || 0;
+    itemsHtml += `<tr>
+      <td>${escapeHtml(item.item_name||'')}</td>
+      <td>${escapeHtml(item.service_name||'')}</td>
+      <td>${weight.toFixed(2)}</td>
+      <td>${escapeHtml(item.karat||'')}</td>
+      <td>&nbsp;</td>
+    </tr>`;
   });
-  
-  const currentTime = new Date().toLocaleTimeString('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
-
-  return `
-  <html>
-  <head>
-    <meta charset="utf-8">
-    <style>
-      @page {
-        size: A4;
-        margin: 20mm;
-      }
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      body { 
-        font-family: Arial, sans-serif; 
-        font-size: 16px; 
-        padding: 20px;
-        width: 210mm;
-        min-height: 148.5mm;
-      }
-      .header {
-        text-align: center;
-        font-weight: bold;
-        font-size: 22px;
-        text-decoration: underline;
-        margin-bottom: 12px;
-      }
-      .customer-section {
-        margin-bottom: 12px;
-        padding-left: 20px;
-      }
-      .customer-row {
-        display: flex;
-        margin-bottom: 2px;
-        min-height: 20px;
-        align-items: center;
-      }
-      .customer-col {
-        display: flex;
-        align-items: center;
-      }
-      .customer-col.left {
-        flex: 2;
-        padding-right: 30px;
-      }
-      .customer-col.right {
-        flex: 1;
-      }
-      .customer-col.right .field-label {
-        min-width: 80px;
-      }
-      .field-label {
-        font-weight: bold;
-        min-width: 140px;
-        white-space: nowrap;
-      }
-      .field-colon {
-        margin: 0 5px 0 0;
-      }
-      .field-value {
-        flex: 1;
-      }
-      .item-section {
-        margin-top: 12px;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        border: 2px solid #000;
-      }
-      .table-header {
-        font-weight: bold;
-        font-size: 18px;
-        text-align: center;
-        padding: 4px;
-        border: 2px solid #000;
-        background-color: #fff;
-      }
-      th {
-        padding: 4px;
-        text-align: center;
-        border: 1px solid #000;
-        font-weight: bold;
-        font-size: 16px;
-        background-color: #fff;
-      }
-      td {
-        padding: 4px 6px;
-        border: 1px solid #000;
-        text-align: center;
-        min-height: 24px;
-        line-height: 1.2;
-      }
-      .footer-row {
-        display: flex;
-        border: 2px solid #000;
-        border-top: 1px solid #000;
-      }
-      .footer-cell {
-        flex: 1;
-        padding: 4px 8px;
-        font-weight: bold;
-        font-size: 16px;
-      }
-      .footer-cell:first-child {
-        border-right: 1px solid #000;
-      }
-      .note {
-        font-size: 12px;
-        margin-top: 6px;
-        line-height: 1.5;
-        padding-left: 20px;
-      }
-      @media print {
-        body {
-          padding: 20mm;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <div style="height: 1in; display: block;"></div>
-    <div class="header">Customer Details</div>
-    
-    <div class="customer-section">
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Customer No</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">${escapeHtml(bill.customer_id || '')}</span>
-        </div>
-        <div class="customer-col right">
-          <span class="field-label">Token No</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">${escapeHtml(bill.id || bill.order_id || '')}</span>
-        </div>
+  const emptyRows = Math.max(0, 3 - (bill.items ? bill.items.length : 0));
+  for (let i = 0; i < emptyRows; i++)
+    itemsHtml += `<tr><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>`;
+  const currentDate = new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const currentTime = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',hour12:true});
+  return `<html><head><meta charset="utf-8"><style>
+    @page{size:A4;margin:20mm;}
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:Arial,sans-serif;font-size:16px;padding:20px;width:210mm;min-height:148.5mm;}
+    .header{text-align:center;font-weight:bold;font-size:22px;text-decoration:underline;margin-bottom:12px;}
+    .customer-section{margin-bottom:12px;padding-left:20px;}
+    .customer-row{display:flex;margin-bottom:2px;min-height:20px;align-items:center;}
+    .customer-col{display:flex;align-items:center;}
+    .customer-col.left{flex:2;padding-right:30px;}
+    .customer-col.right{flex:1;}
+    .customer-col.right .field-label{min-width:80px;}
+    .field-label{font-weight:bold;min-width:140px;white-space:nowrap;}
+    .field-colon{margin:0 5px 0 0;}
+    .field-value{flex:1;}
+    .item-section{margin-top:12px;}
+    table{width:100%;border-collapse:collapse;border:2px solid #000;}
+    .table-header{font-weight:bold;font-size:18px;text-align:center;padding:4px;border:2px solid #000;background-color:#fff;}
+    th{padding:4px;text-align:center;border:1px solid #000;font-weight:bold;font-size:16px;background-color:#fff;}
+    td{padding:4px 6px;border:1px solid #000;text-align:center;min-height:24px;line-height:1.2;}
+    .footer-row{display:flex;border:2px solid #000;border-top:1px solid #000;}
+    .footer-cell{flex:1;padding:4px 8px;font-weight:bold;font-size:16px;}
+    .footer-cell:first-child{border-right:1px solid #000;}
+    .note{font-size:12px;margin-top:6px;line-height:1.5;padding-left:20px;}
+    @media print{body{padding:20mm;}}
+  </style></head><body>
+  <div style="height:1in;display:block;"></div>
+  <div class="header">Customer Details</div>
+  <div class="customer-section">
+    <div class="customer-row">
+      <div class="customer-col left">
+        <span class="field-label">Customer No</span><span class="field-colon">:</span>
+        <span class="field-value">${escapeHtml(bill.customer_id||'')}</span>
       </div>
-      
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Customer Name</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">${escapeHtml(bill.customer_name || '')}</span>
-        </div>
-        <div class="customer-col right">
-          <span class="field-label">Date</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">${currentDate}</span>
-        </div>
-      </div>
-      
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Mobile</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">${escapeHtml(bill.customer_phone || '')}</span>
-        </div>
-        <div class="customer-col right">
-          <span class="field-label">Time</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">${currentTime}</span>
-        </div>
-      </div>
-      
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Address</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">${escapeHtml(bill.customer_address || '')}</span>
-        </div>
-      </div>
-      
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Manufacturer</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">${escapeHtml(bill.manufacturer || '')}</span>
-        </div>
-      </div>
-      
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Box no</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">${escapeHtml(bill.box_no || '')}</span>
-        </div>
+      <div class="customer-col right">
+        <span class="field-label">Token No</span><span class="field-colon">:</span>
+        <span class="field-value">${escapeHtml(bill.id||bill.order_id||'')}</span>
       </div>
     </div>
-
-    <div class="item-section">
-      <table>
-        <thead>
-          <tr>
-            <th colspan="5" class="table-header">ITEM DETAILS</th>
-          </tr>
-          <tr>
-            <th>Items</th>
-            <th>Services</th>
-            <th>Weight</th>
-            <th>Hallmark</th>
-            <th>Remarks</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemsHtml}
-        </tbody>
-      </table>
-
-      <div class="footer-row">
-        <div class="footer-cell">Total Amount : ${parseFloat(bill.total_amount || 0).toFixed(2)} TK</div>
-        <div class="footer-cell">Payment Status : ${escapeHtml((bill.status || '').toUpperCase())}</div>
+    <div class="customer-row">
+      <div class="customer-col left">
+        <span class="field-label">Customer Name</span><span class="field-colon">:</span>
+        <span class="field-value">${escapeHtml(bill.customer_name||'')}</span>
+      </div>
+      <div class="customer-col right">
+        <span class="field-label">Date</span><span class="field-colon">:</span>
+        <span class="field-value">${currentDate}</span>
       </div>
     </div>
-
-    <div class="note">
-      The jewellery/article tested at the point of soldering chemical plated jewellery will show a low or fluctuating reading.<br>
-      We are not responsible for any melting defect.<br>
-      Maximum Diff: (+/-) 0.30%.
+    <div class="customer-row">
+      <div class="customer-col left">
+        <span class="field-label">Mobile</span><span class="field-colon">:</span>
+        <span class="field-value">${escapeHtml(bill.customer_phone||'')}</span>
+      </div>
+      <div class="customer-col right">
+        <span class="field-label">Time</span><span class="field-colon">:</span>
+        <span class="field-value">${currentTime}</span>
+      </div>
     </div>
-
-  </body>
-  </html>`;
+    <div class="customer-row">
+      <div class="customer-col left">
+        <span class="field-label">Address</span><span class="field-colon">:</span>
+        <span class="field-value">${escapeHtml(bill.customer_address||'')}</span>
+      </div>
+    </div>
+    <div class="customer-row">
+      <div class="customer-col left">
+        <span class="field-label">Manufacturer</span><span class="field-colon">:</span>
+        <span class="field-value">${escapeHtml(bill.manufacturer||'')}</span>
+      </div>
+    </div>
+    <div class="customer-row">
+      <div class="customer-col left">
+        <span class="field-label">Box no</span><span class="field-colon">:</span>
+        <span class="field-value">${escapeHtml(bill.box_no||'')}</span>
+      </div>
+    </div>
+  </div>
+  <div class="item-section">
+    <table>
+      <thead>
+        <tr><th colspan="5" class="table-header">ITEM DETAILS</th></tr>
+        <tr><th>Items</th><th>Services</th><th>Weight</th><th>Hallmark</th><th>Remarks</th></tr>
+      </thead>
+      <tbody>${itemsHtml}</tbody>
+    </table>
+    <div class="footer-row">
+      <div class="footer-cell">Total Amount : ${parseFloat(bill.total_amount||0).toFixed(2)} TK</div>
+      <div class="footer-cell">Payment Status : ${escapeHtml((bill.status||'').toUpperCase())}</div>
+    </div>
+  </div>
+  <div class="note">
+    The jewellery/article tested at the point of soldering chemical plated jewellery will show a low or fluctuating reading.<br>
+    We are not responsible for any melting defect.<br>
+    Maximum Diff: (+/-) 0.30%.
+  </div>
+  </body></html>`;
 }
 
+/* ── printSilent ────────────────────────────────────────────── */
 function printSilent(html) {
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.right = '0';
-  iframe.style.bottom = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = '0';
-  iframe.style.visibility = 'hidden';
-  document.body.appendChild(iframe);
-
-  const doc = iframe.contentDocument || iframe.contentWindow.document;
-  doc.open();
-  doc.write(html);
-  doc.close();
-
-  setTimeout(() => {
-    try {
-      iframe.contentWindow.print();
-    } catch (printError) {
-      console.error('Print error:', printError);
-    }
-  }, 500);
-
-  setTimeout(() => {
-    try {
-      iframe.remove();
-    } catch (cleanupError) {
-      console.error('Cleanup error:', cleanupError);
-    }
-  }, 3000);
+  const f = Object.assign(document.createElement('iframe'),
+    {style:'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden'});
+  document.body.appendChild(f);
+  const doc = f.contentDocument || f.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+  setTimeout(() => { try { f.contentWindow.print(); } catch(e){} }, 500);
+  setTimeout(() => { try { f.remove(); } catch(e){} }, 3000);
 }
 
-// UPDATED: Print both 80mm and A4 receipts
+/* ── printBillTwice: 80mm receipt THEN A4 receipt ───────────── */
 async function printBillTwice(bill) {
   if (!bill) return;
-  
   try {
-    // Generate QR code for 80mm receipt
-    const qrCodeDataURL = await generateQRCode(bill);
-    
-    // Build both receipt HTMLs
-    const html80mm = buildReceiptHtml(bill, qrCodeDataURL);
-    const htmlA4 = buildA4ReceiptHtml(bill);
-    
-    // Print 80mm receipt first
-    console.log('Printing 80mm receipt...');
-    printSilent(html80mm);
-    
-    // Print A4 format after a short delay
-    setTimeout(() => {
-      console.log('Printing A4 receipt...');
-      printSilent(htmlA4);
-    }, 1500);
-    
-  } catch (error) {
-    console.error('Error in printing:', error);
+    const qr = await generateQRCode(bill);
+    printSilent(buildReceiptHtml(bill, qr));
+    setTimeout(() => printSilent(buildA4ReceiptHtml(bill)), 1500);
+  } catch(e) {
+    console.error('Print error:', e);
     try {
-      // Fallback without QR code
-      const fallbackHtml80mm = buildReceiptHtml(bill, null);
-      const fallbackHtmlA4 = buildA4ReceiptHtml(bill);
-      
-      printSilent(fallbackHtml80mm);
-      setTimeout(() => printSilent(fallbackHtmlA4), 1500);
-    } catch (fallbackError) {
-      console.error('Fallback print failed:', fallbackError);
-    }
+      printSilent(buildReceiptHtml(bill, null));
+      setTimeout(() => printSilent(buildA4ReceiptHtml(bill)), 1500);
+    } catch(fe) { console.error('Fallback print failed:', fe); }
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+/* ── Init ───────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  updateGrand();
+  refreshConversions();
+
   if (window.billData) {
     setTimeout(() => printBillTwice(window.billData), 2000);
 
-    const printBtn = document.getElementById("printAgainBtn");
-    if (printBtn) {
-      printBtn.addEventListener("click", () => printBillTwice(window.billData));
-    }
+    document.getElementById('printAgainBtn')
+      ?.addEventListener('click', () => printBillTwice(window.billData));
 
-    const testQRBtn = document.getElementById("testQRBtn");
-    if (testQRBtn) {
-      testQRBtn.addEventListener("click", () => testQRGeneration(window.billData));
-    }
+    document.getElementById('testQRBtn')
+      ?.addEventListener('click', () => {
+        generateQRCode(window.billData).then(url => {
+          const a = document.getElementById('qrTestArea');
+          a.innerHTML = url
+            ? `<img src="${url}" style="width:100%;height:100%;object-fit:contain;">`
+            : '<div style="color:red;font-size:10px;text-align:center;padding:10px;">QR Failed</div>';
+          a.style.display = 'block';
+          setTimeout(() => a.style.display = 'none', 8000);
+        });
+      });
   }
-
-  updateGrand();
-  updateAllConversions();
 });
 
+/* ── Form validation ────────────────────────────────────────── */
 document.getElementById('orderForm').addEventListener('submit', function(e) {
-  const customerName = document.getElementById('customerName').value.trim();
-  const customerPhone = document.getElementById('customerPhone').value.trim();
-  const paymentStatus = document.querySelector('input[name="payment_status"]:checked');
-  
-  if (!customerName) {
-    e.preventDefault();
-    alert('Customer name is required');
-    document.getElementById('customerName').focus();
-    return false;
-  }
-  
-  if (!customerPhone) {
-    e.preventDefault();
-    alert('Customer phone is required');
-    document.getElementById('customerPhone').focus();
-    return false;
-  }
-  
-  if (!paymentStatus) {
-    e.preventDefault();
-    alert('Payment status is required');
-    return false;
-  }
-  
-  const rows = document.querySelectorAll('.item-row');
-  let hasValidSelection = false;
-  
-  rows.forEach(row => {
-    const itemSelect = row.querySelector('.item-select');
-    const serviceSelect = row.querySelector('.service-select');
-    const qty = parseInt(row.querySelector('.quantity-input').value) || 0;
-    
-    if (qty > 0 && itemSelect && itemSelect.value !== '' && serviceSelect && serviceSelect.value !== '') {
-      hasValidSelection = true;
-    }
+  const name   = document.getElementById('customerName').value.trim();
+  const phone  = document.getElementById('customerPhone').value.trim();
+  const status = document.querySelector('input[name="payment_status"]:checked');
+
+  if (!name)   { e.preventDefault(); alert('Customer name is required');  document.getElementById('customerName').focus();  return; }
+  if (!phone)  { e.preventDefault(); alert('Customer phone is required'); document.getElementById('customerPhone').focus(); return; }
+  if (!status) { e.preventDefault(); alert('Please select a payment status'); return; }
+
+  let valid = false;
+  document.querySelectorAll('.item-row').forEach(row => {
+    const iSel = row.querySelector('.item-select');
+    const sSel = row.querySelector('.service-select');
+    const qty  = parseInt(row.querySelector('.quantity-input').value) || 0;
+    if (iSel?.value && sSel?.value && qty > 0) valid = true;
   });
-  
-  if (!hasValidSelection) {
+
+  if (!valid) {
     e.preventDefault();
-    alert('At least one item with BOTH Item and Service selected is required');
-    return false;
+    alert('At least one row with both Item and Service selected is required');
+    return;
   }
-  
-  const submitBtn = this.querySelector('button[type="submit"]');
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Processing...';
+
+  const btn = this.querySelector('#submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:.7rem;"></i> Processing…';
 });
 </script>
-
 </body>
 </html>
