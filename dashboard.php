@@ -872,11 +872,7 @@ foreach ($servicesList as $s) {
         <div class="q-ico qi-blue"><i class="fas fa-key"></i></div>
         <div class="q-txt"><h6>Branch Licenses</h6><p>Manage licenses</p></div>
       </a>
-
-      <a href="store_msg.php" class="qcard">
-        <div class="q-ico qi-cyan"><i class="fas fa-paper-plane"></i></div>
-        <div class="q-txt"><h6>Branch Message</h6><p>Send to branches</p></div>
-      </a>
+      
       <?php endif; ?>
       <?php endif; ?>
 

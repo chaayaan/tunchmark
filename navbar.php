@@ -242,7 +242,7 @@ if ($is_blocked) {
                 <span>Manage</span>
                 <i class="fas fa-chevron-down nb-chevron"></i>
             </div>
-            <div class="nb-submenu <?= in_array(basename($_SERVER['PHP_SELF']), ['users.php','account.php','machine_summary.php']) ? 'nb-open' : '' ?>"
+            <div class="nb-submenu <?= in_array(basename($_SERVER['PHP_SELF']), ['users.php','account.php','machine_summary.php','manage_licenses.php']) ? 'nb-open' : '' ?>"
                  id="nbManage">
                 <?php if ($_SESSION['role'] === 'admin'): ?>
                 <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'users.php' ? 'nb-active' : '' ?>"
@@ -257,6 +257,10 @@ if ($is_blocked) {
                 <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'account.php' ? 'nb-active' : '' ?>"
                    href="account.php">
                     <i class="fas fa-chart-line"></i><span>Finance Panel</span>
+                </a>
+                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'manage_licenses.php' ? 'nb-active' : '' ?>"
+                   href="manage_licenses.php">
+                    <i class="fas fa-chart-line"></i><span>Licenses</span>
                 </a>
             </div>
         </div>
