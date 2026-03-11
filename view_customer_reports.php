@@ -88,7 +88,7 @@ require 'mydb.php';
         /* ── Filter bar ────────────────────────── */
         .filter-bar {
             display: grid;
-            grid-template-columns: 1fr auto auto;
+            grid-template-columns: 1fr auto auto auto;
             gap: 10px; align-items: end;
             padding: 14px 18px;
             background: var(--s2); border-bottom: 1px solid var(--bsoft);
@@ -187,6 +187,13 @@ require 'mydb.php';
             font-size: .72rem; font-weight: 700;
         }
 
+        /* purity label mini tag */
+        .purity-label {
+            font-size: .66rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: .04em; color: var(--t4); display: block;
+            margin-bottom: 1px;
+        }
+
         .qty-badge {
             display: inline-flex; align-items: center; justify-content: center;
             background: var(--s2); border: 1px solid var(--border);
@@ -203,10 +210,12 @@ require 'mydb.php';
             border: 1.5px solid; font-size: .72rem; cursor: pointer;
             transition: all .15s; text-decoration: none; background: var(--surface);
         }
-        .act-view  { border-color: var(--blue-b);   color: var(--blue);   }
+        .act-view        { border-color: var(--blue-b);   color: var(--blue);   }
         .act-view:hover  { background: var(--blue-bg);   }
-        .act-edit  { border-color: var(--amber-b);  color: var(--amber);  }
+        .act-edit        { border-color: var(--amber-b);  color: var(--amber);  }
         .act-edit:hover  { background: var(--amber-bg);  }
+        .act-open        { border-color: var(--green-b);  color: var(--green);  }
+        .act-open:hover  { background: var(--green-bg);  }
 
         /* ── Empty state ───────────────────────── */
         .empty-state { text-align: center; padding: 56px 20px; color: var(--t4); }
@@ -251,7 +260,7 @@ require 'mydb.php';
         <div class="tb-ico"><i class="fas fa-file-lines"></i></div>
         <div>
             <div class="tb-title">Customer Reports</div>
-            <div class="tb-sub">View and manage all hallmark & tunch reports</div>
+            <div class="tb-sub">View and manage all hallmark &amp; tunch reports</div>
         </div>
         <div class="tb-right">
             <a href="create_hallmark_report.php" class="btn-pos btn-ghost">
@@ -268,29 +277,50 @@ require 'mydb.php';
 
     <div class="main">
     <?php
-        // Pagination settings
+        // ── Query params ──────────────────────────────────────────────
         $records_per_page = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 100;
-        $page   = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-        $offset = ($page - 1) * $records_per_page;
+        $page    = isset($_GET['page'])     ? max(1, (int)$_GET['page']) : 1;
+        $offset  = ($page - 1) * $records_per_page;
+        $search  = isset($_GET['search'])   ? trim($_GET['search']) : '';
+        $filter_type = isset($_GET['type']) ? $_GET['type'] : '';  // 'hallmark' | 'tunch' | ''
 
-        $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
+        // ── WHERE clause (safe) ───────────────────────────────────────
+        $conditions = [];
 
-        $where_clause = "";
         if (!empty($search)) {
-            $where_clause = "WHERE (customer_name LIKE '%$search%' OR item_name LIKE '%$search%' OR order_id LIKE '%$search%')";
+            $s = mysqli_real_escape_string($conn, $search);
+            $conditions[] = "(customer_name LIKE '%$s%' OR item_name LIKE '%$s%' OR order_id LIKE '%$s%')";
         }
 
-        $count_query    = "SELECT COUNT(*) as total FROM customer_reports $where_clause";
-        $count_result   = mysqli_query($conn, $count_query);
-        $total_records  = mysqli_fetch_assoc($count_result)['total'];
-        $total_pages    = ceil($total_records / $records_per_page);
+        if ($filter_type === 'hallmark') {
+            $conditions[] = "service_name LIKE '%hallmark%'";
+        } elseif ($filter_type === 'tunch') {
+            $conditions[] = "service_name NOT LIKE '%hallmark%'";
+        }
 
-        $query  = "SELECT * FROM customer_reports $where_clause ORDER BY created_at DESC LIMIT $offset, $records_per_page";
-        $result = mysqli_query($conn, $query);
+        $where_clause = !empty($conditions) ? 'WHERE ' . implode(' AND ', $conditions) : '';
 
-        $startRecord = $offset + 1;
+        // ── Counts ────────────────────────────────────────────────────
+        $count_result  = mysqli_query($conn, "SELECT COUNT(*) as total FROM customer_reports $where_clause");
+        $total_records = mysqli_fetch_assoc($count_result)['total'];
+        $total_pages   = max(1, ceil($total_records / $records_per_page));
+        $page          = min($page, $total_pages);
+        $offset        = ($page - 1) * $records_per_page;
+
+        $startRecord = $total_records > 0 ? $offset + 1 : 0;
         $endRecord   = min($offset + $records_per_page, $total_records);
-        $hasSearch   = !empty($search);
+
+        // ── Fetch rows ────────────────────────────────────────────────
+        $result = mysqli_query($conn,
+            "SELECT id, order_id, customer_name, item_name, quantity, service_name,
+                    weight, gold_purity_percent, silver_purity_percent, karat,
+                    hallmark, created_at
+             FROM customer_reports $where_clause
+             ORDER BY created_at DESC
+             LIMIT $offset, $records_per_page"
+        );
+
+        $hasFilter = !empty($search) || !empty($filter_type);
     ?>
 
         <div class="pos-card">
@@ -298,6 +328,7 @@ require 'mydb.php';
             <!-- Filter bar -->
             <form method="GET">
                 <div class="filter-bar">
+                    <!-- Search -->
                     <div>
                         <label class="lbl">Search</label>
                         <div class="search-wrap">
@@ -307,6 +338,18 @@ require 'mydb.php';
                                    value="<?= htmlspecialchars($search) ?>">
                         </div>
                     </div>
+
+                    <!-- Type filter -->
+                    <div>
+                        <label class="lbl">Type</label>
+                        <select name="type" class="fc" style="width:130px;">
+                            <option value=""        <?= $filter_type === ''         ? 'selected' : '' ?>>All Types</option>
+                            <option value="hallmark"<?= $filter_type === 'hallmark' ? 'selected' : '' ?>>Hallmark</option>
+                            <option value="tunch"   <?= $filter_type === 'tunch'    ? 'selected' : '' ?>>Tunch</option>
+                        </select>
+                    </div>
+
+                    <!-- Per page -->
                     <div>
                         <label class="lbl">Per Page</label>
                         <select name="per_page" class="fc" style="width:100px;">
@@ -315,11 +358,13 @@ require 'mydb.php';
                             <?php endforeach; ?>
                         </select>
                     </div>
+
+                    <!-- Actions -->
                     <div style="display:flex;gap:7px;align-items:flex-end;">
                         <button type="submit" class="btn-pos btn-blue" style="height:34px;">
                             <i class="fas fa-filter" style="font-size:.6rem;"></i> Filter
                         </button>
-                        <?php if ($hasSearch): ?>
+                        <?php if ($hasFilter): ?>
                         <a href="view_customer_reports.php" class="btn-pos btn-ghost" style="height:34px;">
                             <i class="fas fa-rotate-left" style="font-size:.6rem;"></i> Reset
                         </a>
@@ -339,7 +384,7 @@ require 'mydb.php';
                     <span>Showing <strong><?= number_format($startRecord) ?></strong>–<strong><?= number_format($endRecord) ?></strong></span>
                     <?php endif; ?>
                 </div>
-                <span>Page <strong><?= $page ?></strong> / <strong><?= max(1,$total_pages) ?></strong></span>
+                <span>Page <strong><?= $page ?></strong> / <strong><?= $total_pages ?></strong></span>
             </div>
 
             <!-- Table -->
@@ -352,7 +397,7 @@ require 'mydb.php';
                             <th>Customer</th>
                             <th>Item</th>
                             <th class="c">Qty</th>
-                            <th>Service</th>
+                            <th>Type</th>
                             <th class="r">Weight (g)</th>
                             <th>Purity</th>
                             <th>Karat</th>
@@ -362,9 +407,25 @@ require 'mydb.php';
                         </tr>
                     </thead>
                     <tbody>
-                    <?php if (mysqli_num_rows($result) > 0): ?>
-                        <?php while ($row = mysqli_fetch_assoc($result)): ?>
-                        <?php $isTunchService = stripos($row['service_name'], 'hallmark') === false && !empty($row['composition_data']); ?>
+                    <?php if ($result && mysqli_num_rows($result) > 0): ?>
+                        <?php while ($row = mysqli_fetch_assoc($result)):
+                            $isHallmark = stripos($row['service_name'], 'hallmark') !== false;
+                            $isSilver   = stripos($row['item_name'], 'silver') !== false
+                                       || strpos($row['item_name'], 'চাঁদি') !== false
+                                       || stripos($row['item_name'], 'rupa') !== false;
+
+                            // Purity: pick the right column
+                            if ($isHallmark) {
+                                $purityVal   = null;
+                                $purityLabel = '';
+                            } elseif ($isSilver) {
+                                $purityVal   = $row['silver_purity_percent'];
+                                $purityLabel = 'Silver';
+                            } else {
+                                $purityVal   = $row['gold_purity_percent'];
+                                $purityLabel = 'Gold';
+                            }
+                        ?>
                         <tr>
                             <td><span class="id-badge"><?= $row['id'] ?></span></td>
                             <td><span class="order-badge">#<?= $row['order_id'] ?></span></td>
@@ -376,20 +437,29 @@ require 'mydb.php';
                                 <span class="qty-badge"><?= htmlspecialchars($row['quantity'] ?: '1') ?></span>
                             </td>
                             <td>
-                                <?php if (stripos($row['service_name'], 'hallmark') !== false): ?>
+                                <?php if ($isHallmark): ?>
                                     <span class="svc-hallmark">Hallmark</span>
                                 <?php else: ?>
                                     <span class="svc-tunch">Tunch</span>
                                 <?php endif; ?>
                             </td>
                             <td style="text-align:right;padding-right:16px;">
-                                <span class="mono-val"><?= number_format($row['weight'], 3) ?></span>
+                                <span class="mono-val"><?= number_format((float)$row['weight'], 3) ?></span>
                             </td>
                             <td>
-                                <span class="mono-val"><?= htmlspecialchars($row['gold_purity'] ?: '—') ?></span>
+                                <?php if ($purityVal !== null && $purityVal !== ''): ?>
+                                    <span class="purity-label"><?= $purityLabel ?></span>
+                                    <span class="mono-val"><?= number_format((float)$purityVal, 3) ?>%</span>
+                                <?php else: ?>
+                                    <span style="color:var(--t4);">—</span>
+                                <?php endif; ?>
                             </td>
                             <td>
-                                <span class="mono-val"><?= htmlspecialchars($row['karat'] ?: '—') ?></span>
+                                <?php if (!$isHallmark && $row['karat'] !== null && $row['karat'] !== ''): ?>
+                                    <span class="mono-val"><?= number_format((float)$row['karat'], 2) ?>K</span>
+                                <?php else: ?>
+                                    <span style="color:var(--t4);">—</span>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <?php if (!empty($row['hallmark'])): ?>
@@ -401,12 +471,26 @@ require 'mydb.php';
                             <td><span class="date-val"><?= date('d M Y', strtotime($row['created_at'])) ?></span></td>
                             <td>
                                 <div class="act-group">
-                                    <?php if ($isTunchService): ?>
-                                    <a href="view_tunch_report.php?id=<?= $row['id'] ?>"
-                                       class="act-btn act-view" title="View Report">
+                                    <!-- View report (internal preview) -->
+                                    <?php if ($isHallmark): ?>
+                                    <a href="create_hallmark_report.php?report_id=<?= $row['id'] ?>"
+                                       class="act-btn act-view" title="View Hallmark Report">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <?php else: ?>
+                                    <a href="create_tunch_report.php?report_id=<?= $row['id'] ?>"
+                                       class="act-btn act-view" title="View Tunch Report">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     <?php endif; ?>
+
+                                    <!-- Open public verification page -->
+                                    <a href="report_varification.php?id=<?= $row['id'] ?>"
+                                       class="act-btn act-open" title="Open Verification Page" target="_blank">
+                                        <i class="fas fa-arrow-up-right-from-square"></i>
+                                    </a>
+
+                                    <!-- Edit -->
                                     <a href="edit_customer_report_form.php?id=<?= $row['id'] ?>"
                                        class="act-btn act-edit" title="Edit">
                                         <i class="fas fa-pen"></i>
@@ -420,7 +504,7 @@ require 'mydb.php';
                             <td colspan="12">
                                 <div class="empty-state">
                                     <i class="fas fa-inbox"></i>
-                                    <p>No records found<?= $hasSearch ? ' matching your search' : '' ?>.</p>
+                                    <p>No records found<?= $hasFilter ? ' matching your filter' : '' ?>.</p>
                                 </div>
                             </td>
                         </tr>
