@@ -6,8 +6,8 @@ include 'navbar.php';
 date_default_timezone_set('Asia/Dhaka');
 
 $filterType     = $_GET['type']      ?? 'all';
-$filterDateFrom = $_GET['date_from'] ?? '';
-$filterDateTo   = $_GET['date_to']   ?? '';
+$filterDateFrom = $_GET['date_from'] ?? date('Y-m-01');
+$filterDateTo   = $_GET['date_to']   ?? date('Y-m-d');
 $page           = max(1, intval($_GET['page'] ?? 1));
 $perPage        = 50;
 $offset         = ($page - 1) * $perPage;
