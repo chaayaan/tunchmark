@@ -65,8 +65,11 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
     $gold_purity_percent   = $isSilver ? null : (floatval($_POST['purity_percent']) ?: null);
     $silver_purity_percent = $isSilver ? (floatval($_POST['purity_percent']) ?: null) : null;
     $karat     = floatval($_POST['karat'])     ?: null;
-    $gold_val  = floatval($_POST['gold_val'])  ?: null;
-    $joint_val = floatval($_POST['joint_val']) ?: null;
+    $gold_raw  = floatval($_POST['gold_val']);
+    $joint_raw = floatval($_POST['joint_val']);
+    // Gold & Joint are karat values — must be 0–24
+    $gold_val  = ($gold_raw  >= 0 && $gold_raw  <= 24) ? ($gold_raw  ?: null) : null;
+    $joint_val = ($joint_raw >= 0 && $joint_raw <= 24) ? ($joint_raw ?: null) : null;
 
     $elementCols  = [];
     $elementVals  = [];
@@ -387,23 +390,23 @@ include 'navbar.php';
                         <span class="sec-title">Step 3 — Customer & Sample Details</span>
                         <span class="sec-title-note"><i class="fas fa-pen" style="font-size:.6rem;"></i> Editable</span>
                     </div>
-                    <div class="sec-body" style="display:flex;flex-direction:column;gap:14px;">
-                        <div>
-                            <label class="lbl">Customer Name <span class="req">*</span></label>
-                            <input type="text" name="customer_name" id="customer_name" class="fc editable" required
-                                   value="<?= htmlspecialchars($order_data['customer_name']) ?>">
-                        </div>
-                        <div class="field-grid-2">
+                    <div class="sec-body">
+                        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;">
                             <div>
-                                <label class="lbl">Sample Item Name <span class="req">*</span></label>
-                                <input type="text" name="item_name" id="item_name" class="fc editable" required
-                                       value="<?= htmlspecialchars($bill_items[0]['item_name']) ?>"
-                                       oninput="updateMetalType()">
+                                <label class="lbl">Customer Name <span class="req">*</span></label>
+                                <input type="text" name="customer_name" id="customer_name" class="fc editable" required
+                                       value="<?= htmlspecialchars($order_data['customer_name']) ?>">
                             </div>
                             <div>
                                 <label class="lbl">Sample Weight (gm) <span class="req">*</span></label>
                                 <input type="number" name="weight" id="weight" class="fc editable" step="0.001" required
                                        value="<?= $bill_items[0]['weight'] ?>">
+                            </div>
+                            <div>
+                                <label class="lbl">Sample Item Name <span class="req">*</span></label>
+                                <input type="text" name="item_name" id="item_name" class="fc editable" required
+                                       value="<?= htmlspecialchars($bill_items[0]['item_name']) ?>"
+                                       oninput="updateMetalType()">
                             </div>
                         </div>
                     </div>
@@ -451,93 +454,115 @@ include 'navbar.php';
                     <span class="sec-ico si-gr"><i class="fas fa-vial"></i></span>
                     <span class="sec-title">Step 5 — Testing Results</span>
                 </div>
-                <div class="sec-body" style="display:flex;flex-direction:column;gap:16px;">
+                <div class="sec-body" style="display:flex;flex-direction:column;gap:14px;">
 
-                    <!-- Purity & Karat -->
-                    <div class="field-grid-2">
-                        <div>
-                            <label class="lbl"><span id="purityLabel">Gold Purity</span> (%) <span class="req">*</span></label>
+                    <!-- Purity & Karat — prominent row -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 14px;background:var(--violet-bg);border:1.5px solid var(--violet-b);border-radius:8px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:.78rem;font-weight:700;color:var(--violet);white-space:nowrap;min-width:90px;"><span id="purityLabel">Gold Purity</span> %</span>
                             <input type="number" name="purity_percent" id="purity_percent"
-                                   class="fc" step="0.001" placeholder="e.g. 75.470"
-                                   form="reportForm" required>
-                        </div>
-                        <div>
-                            <label class="lbl">Karat <span class="req">*</span></label>
-                            <input type="number" name="karat" id="karat"
-                                   class="fc" step="0.01" placeholder="e.g. 18.11"
+                                   class="fc" step="0.001" placeholder="75.470"
                                    form="reportForm" required
-                                   style="font-family:'DM Mono',monospace;font-weight:700;">
+                                   style="font-family:'DM Mono',monospace;font-weight:700;font-size:.95rem;height:34px;border-color:var(--violet-b);">
+                        </div>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:.78rem;font-weight:700;color:var(--violet);white-space:nowrap;min-width:50px;">Karat</span>
+                            <input type="number" name="karat" id="karat"
+                                   class="fc" step="0.01" placeholder="18.11"
+                                   form="reportForm" required
+                                   style="font-family:'DM Mono',monospace;font-weight:700;font-size:.95rem;height:34px;border-color:var(--violet-b);">
                         </div>
                     </div>
 
-                    <!-- Common Elements -->
+                    <!-- All Elements — 3-column table layout like the XRF machine printout -->
+                    <?php
+                    // All elements merged into one flat list for the 3-col table
+                    // Each entry: [display_name, field_id]
+                    $allElemRows = [
+                        ['Silver',    'silver'],
+                        ['Copper',    'copper'],
+                        ['Zinc',      'zinc'],
+                        ['Cadmium',   'cadmium'],
+                        ['Iridium',   'iridium'],
+                        ['Rhodium',   'rhodium'],
+                        ['Cobalt',    'cobalt'],
+                        ['Germanium', 'germanium'],
+                        ['Palladium', 'palladium'],
+                        ['Platinum',  'platinum'],
+                        ['Iron',      'iron'],
+                        ['Tin',       'tin'],
+                        ['Lead',      'lead'],
+                        ['Gallium',   'gallium'],
+                        ['Bismuth',   'bismuth'],
+                        ['Nickel',    'nickel'],
+                        ['Indium',    'indium'],
+                        ['Tungsten',  'tungsten'],
+                        ['Ruthenium', 'ruthenium'],
+                        ['Rhenium',   'rhenium'],
+                        ['Osmium',    'osmium'],
+                        ['Antimony',  'antimony'],
+                        ['Titanium',  'titanium'],
+                        ['Vanadium',  'vanadium'],
+                        ['Manganese', 'manganese'],
+                    ];
+                    // Pad to multiple of 3
+                    while (count($allElemRows) % 3 !== 0) $allElemRows[] = null;
+                    $chunks = array_chunk($allElemRows, 3);
+                    ?>
+
                     <div>
-                        <div class="element-group-title">Metal Composition — Common Elements</div>
-                        <div class="field-grid-3">
-                            <?php $commonElements = ['silver','copper','zinc','cadmium','nickel','palladium','indium','iridium','tin','ruthenium','rhodium','lead','cobalt','osmium','iron']; ?>
-                            <?php foreach ($commonElements as $el): ?>
-                            <div>
-                                <label class="lbl"><?= ucfirst($el) ?></label>
-                                <input type="text" name="elem_<?= $el ?>" id="elem_<?= $el ?>"
-                                       class="fc" form="reportForm"
-                                       style="font-family:'DM Mono',monospace;font-size:.8rem;"
-                                       placeholder="--------">
-                            </div>
+                        <div class="element-group-title">Metal Composition</div>
+                        <table style="width:100%;border-collapse:collapse;">
+                            <tbody>
+                            <?php foreach ($chunks as $row): ?>
+                            <tr>
+                                <?php foreach ($row as $elem): ?>
+                                <td style="padding:3px 6px 3px 0;width:33.33%;">
+                                    <?php if ($elem): ?>
+                                    <div style="display:flex;align-items:center;gap:6px;">
+                                        <span style="font-size:.82rem;color:var(--t2);min-width:72px;flex-shrink:0;"><?= $elem[0] ?></span>
+                                        <input type="text"
+                                               name="elem_<?= $elem[1] ?>"
+                                               id="elem_<?= $elem[1] ?>"
+                                               class="fc"
+                                               form="reportForm"
+                                               placeholder="--------"
+                                               style="font-family:'DM Mono',monospace;font-size:.8rem;height:30px;padding:0 6px;min-width:0;">
+                                    </div>
+                                    <?php else: ?>
+                                    <div></div>
+                                    <?php endif; ?>
+                                </td>
+                                <?php endforeach; ?>
+                            </tr>
                             <?php endforeach; ?>
-                        </div>
+                            </tbody>
+                        </table>
                     </div>
 
-                    <!-- Gold-Specific -->
-                    <div>
-                        <div class="element-group-title">Metal Composition — Gold-Specific</div>
-                        <div class="field-grid-3">
-                            <?php $goldSpecific = ['germanium','bismuth','platinum','tungsten','gallium','rhenium']; ?>
-                            <?php foreach ($goldSpecific as $el): ?>
-                            <div>
-                                <label class="lbl"><?= ucfirst($el) ?></label>
-                                <input type="text" name="elem_<?= $el ?>" id="elem_<?= $el ?>"
-                                       class="fc" form="reportForm"
-                                       style="font-family:'DM Mono',monospace;font-size:.8rem;"
-                                       placeholder="--------">
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
-                    <!-- Silver-Specific -->
-                    <div>
-                        <div class="element-group-title">Metal Composition — Silver-Specific</div>
-                        <div class="field-grid-3">
-                            <?php $silverSpecific = ['antimony','titanium','vanadium','manganese']; ?>
-                            <?php foreach ($silverSpecific as $el): ?>
-                            <div>
-                                <label class="lbl"><?= ucfirst($el) ?></label>
-                                <input type="text" name="elem_<?= $el ?>" id="elem_<?= $el ?>"
-                                       class="fc" form="reportForm"
-                                       style="font-family:'DM Mono',monospace;font-size:.8rem;"
-                                       placeholder="--------">
-                            </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
-                    <!-- Gold & Joint -->
-                    <div>
-                        <div class="element-group-title">Gold & Joint</div>
-                        <div class="field-grid-2">
-                            <div>
-                                <label class="lbl">Gold (%)</label>
+                    <!-- Gold & Joint — karat values, 0–24 only -->
+                    <div style="display:flex;align-items:center;gap:24px;padding:10px 14px;background:var(--s2);border:1px solid var(--border);border-radius:7px;">
+                        <span style="font-size:.78rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;">Gold &amp; Joint</span>
+                        <div style="display:flex;align-items:center;gap:8px;flex:1;">
+                            <span style="font-size:.82rem;color:var(--t2);white-space:nowrap;">Gold (K)</span>
+                            <div style="flex:1;min-width:0;">
                                 <input type="number" name="gold_val" id="gold_val"
                                        class="fc" form="reportForm"
-                                       step="0.001" placeholder="e.g. 0.000"
-                                       style="font-family:'DM Mono',monospace;">
+                                       step="0.001" min="0" max="24" placeholder="0.000"
+                                       oninput="validateKarat(this)"
+                                       style="font-family:'DM Mono',monospace;height:30px;padding:0 6px;width:100%;">
+                                <span id="gold_val_err" style="display:none;font-size:.7rem;color:var(--red);margin-top:2px;">Must be 0 – 24</span>
                             </div>
-                            <div>
-                                <label class="lbl">Joint (%)</label>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;flex:1;">
+                            <span style="font-size:.82rem;color:var(--t2);white-space:nowrap;">Joint (K)</span>
+                            <div style="flex:1;min-width:0;">
                                 <input type="number" name="joint_val" id="joint_val"
                                        class="fc" form="reportForm"
-                                       step="0.001" placeholder="e.g. 0.000"
-                                       style="font-family:'DM Mono',monospace;">
+                                       step="0.001" min="0" max="24" placeholder="0.000"
+                                       oninput="validateKarat(this)"
+                                       style="font-family:'DM Mono',monospace;height:30px;padding:0 6px;width:100%;">
+                                <span id="joint_val_err" style="display:none;font-size:.7rem;color:var(--red);margin-top:2px;">Must be 0 – 24</span>
                             </div>
                         </div>
                     </div>
@@ -731,6 +756,15 @@ function updateMetalType() {
     const name = document.getElementById('item_name')?.value || '';
     const lbl  = document.getElementById('purityLabel');
     if (lbl) lbl.textContent = isSilverItem(name) ? 'Silver Purity' : 'Gold Purity';
+}
+
+function validateKarat(input) {
+    const val = parseFloat(input.value);
+    const errEl = document.getElementById(input.id + '_err');
+    const isInvalid = input.value !== '' && (isNaN(val) || val < 0 || val > 24);
+    input.style.borderColor = isInvalid ? 'var(--red)' : '';
+    input.style.background  = isInvalid ? 'var(--red-bg)' : '';
+    if (errEl) errEl.style.display = isInvalid ? 'block' : 'none';
 }
 
 function parseXRFData() {
