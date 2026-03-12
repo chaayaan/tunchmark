@@ -10,6 +10,7 @@ $services       = [];
 $report_created = false;
 $report_id      = null;
 $report_data    = null;
+$upload_error   = null;
 
 // Fetch active items for dropdown
 $itemsQuery  = "SELECT id, name FROM items WHERE is_active = 1 ORDER BY name ASC";
@@ -67,14 +68,76 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
     $quantity         = intval($_POST['quantity']);
     $hallmark         = trim($_POST['hallmark']);
 
-    $stmt = mysqli_prepare($conn, "INSERT INTO customer_reports (order_id, customer_name, item_name, service_name, weight, quantity, hallmark, address, manufacturer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    mysqli_stmt_bind_param($stmt, "isssdisss", $order_id, $customer_name, $item_name, $service_name, $weight, $quantity, $hallmark, $customer_address, $manufacturer);
-    mysqli_stmt_execute($stmt);
-    $report_id = mysqli_insert_id($conn);
-    mysqli_stmt_close($stmt);
+    // ── Validate uploaded image ────────────────────────────────────────────
+    $allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    $max_size      = 200 * 1024; // 200 KB
+    $photo_info    = null;
 
-    header("Location: create_hallmark_report.php?report_id=" . $report_id);
-    exit;
+    if (isset($_FILES['photo']) && $_FILES['photo']['error'] !== UPLOAD_ERR_NO_FILE) {
+        $file = $_FILES['photo'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            $upload_error = "Photo upload error (code {$file['error']}).";
+        } elseif ($file['size'] > $max_size) {
+            $upload_error = "Photo exceeds 200 KB limit.";
+        } else {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime  = $finfo->file($file['tmp_name']);
+            if (!in_array($mime, $allowed_types, true)) {
+                $upload_error = "Photo must be JPG, PNG, or WEBP.";
+            } else {
+                $photo_info = ['tmp' => $file['tmp_name'], 'mime' => $mime];
+            }
+        }
+    }
+
+    if ($upload_error) {
+        // Re-populate order data so form shows again with error
+        $stmt = mysqli_prepare($conn, "SELECT order_id, customer_name, manufacturer, customer_address FROM orders WHERE order_id = ?");
+        mysqli_stmt_bind_param($stmt, "i", $order_id);
+        mysqli_stmt_execute($stmt);
+        $order_data = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+        mysqli_stmt_close($stmt);
+        $stmt = mysqli_prepare($conn,
+            "SELECT bi.bill_item_id, bi.weight, bi.karat, bi.quantity, i.name as item_name, s.name as service_name
+             FROM bill_items bi JOIN items i ON bi.item_id=i.id JOIN services s ON bi.service_id=s.id
+             WHERE bi.order_id=? AND s.name LIKE '%hallmark%'");
+        mysqli_stmt_bind_param($stmt, "i", $order_id);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+        while ($row = mysqli_fetch_assoc($result)) $bill_items[] = $row;
+        mysqli_stmt_close($stmt);
+    } else {
+        // ── Insert report ──────────────────────────────────────────────────
+        $stmt = mysqli_prepare($conn, "INSERT INTO customer_reports (order_id, customer_name, item_name, service_name, weight, quantity, hallmark, address, manufacturer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        mysqli_stmt_bind_param($stmt, "isssdisss", $order_id, $customer_name, $item_name, $service_name, $weight, $quantity, $hallmark, $customer_address, $manufacturer);
+        mysqli_stmt_execute($stmt);
+        $report_id = mysqli_insert_id($conn);
+        mysqli_stmt_close($stmt);
+
+        // ── Save image ─────────────────────────────────────────────────────
+        if ($photo_info !== null) {
+            $upload_dir = __DIR__ . '/uploads/hallmark_reports/';
+            if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
+
+            $ext_map  = ['image/jpeg' => 'jpg', 'image/jpg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+            $ext      = $ext_map[$photo_info['mime']] ?? 'jpg';
+            $filename = "hallmark_{$report_id}.{$ext}";
+            $dest     = $upload_dir . $filename;
+            $rel_path = "uploads/hallmark_reports/{$filename}";
+
+            if (move_uploaded_file($photo_info['tmp'], $dest)) {
+                $imgStmt = mysqli_prepare($conn,
+                    "INSERT INTO report_images (report_id, img_type, img_number, img_path)
+                     VALUES (?, 'hallmark', 1, ?)");
+                mysqli_stmt_bind_param($imgStmt, 'is', $report_id, $rel_path);
+                mysqli_stmt_execute($imgStmt);
+                mysqli_stmt_close($imgStmt);
+            }
+        }
+
+        header("Location: create_hallmark_report.php?report_id=" . $report_id);
+        exit;
+    }
 }
 
 // Fetch existing report if report_id in URL
@@ -87,7 +150,18 @@ if (isset($_GET['report_id'])) {
     $report_data = mysqli_fetch_assoc($result);
     mysqli_stmt_close($stmt);
 
-    if ($report_data) $report_created = true;
+    if ($report_data) {
+        $report_created = true;
+
+        // Load report image
+        $imgStmt = mysqli_prepare($conn,
+            "SELECT img_path FROM report_images WHERE report_id=? AND img_type='hallmark' ORDER BY img_number ASC LIMIT 1");
+        mysqli_stmt_bind_param($imgStmt, 'i', $report_id);
+        mysqli_stmt_execute($imgStmt);
+        $imgRow        = mysqli_fetch_assoc(mysqli_stmt_get_result($imgStmt));
+        $report_image  = $imgRow ? $imgRow['img_path'] : null;
+        mysqli_stmt_close($imgStmt);
+    }
 }
 
 include 'navbar.php';
@@ -135,81 +209,31 @@ include 'navbar.php';
             min-height: 100vh;
         }
 
-        /* ── Shell ─────────────────────────────── */
-        .page-shell {
-            margin-left: 200px;
-            min-height: 100vh;
-            display: flex; flex-direction: column;
-        }
+        .page-shell { margin-left: 200px; min-height: 100vh; display: flex; flex-direction: column; }
 
-        /* ── Top bar ───────────────────────────── */
         .top-bar {
             position: sticky; top: 0; z-index: 200;
-            height: 54px;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            box-shadow: var(--sh);
-            display: flex; align-items: center;
-            padding: 0 22px; gap: 12px; flex-shrink: 0;
+            height: 54px; background: var(--surface);
+            border-bottom: 1px solid var(--border); box-shadow: var(--sh);
+            display: flex; align-items: center; padding: 0 22px; gap: 12px; flex-shrink: 0;
         }
-        .tb-ico {
-            width: 32px; height: 32px; border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 13px; background: var(--cyan-bg); color: var(--cyan);
-            flex-shrink: 0;
-        }
+        .tb-ico { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; background: var(--cyan-bg); color: var(--cyan); flex-shrink: 0; }
         .tb-title { font-size: 1.0625rem; font-weight: 700; color: var(--t1); }
         .tb-sub   { font-size: .78rem; color: var(--t4); }
         .tb-right { margin-left: auto; display: flex; gap: 7px; align-items: center; }
 
-        /* ── Buttons ───────────────────────────── */
-        .btn-pos {
-            display: inline-flex; align-items: center; gap: 6px;
-            height: 34px; padding: 0 14px;
-            border: none; border-radius: var(--rs);
-            font-family: inherit; font-size: .8125rem; font-weight: 600;
-            cursor: pointer; transition: all .15s; text-decoration: none;
-            white-space: nowrap;
-        }
-        .btn-ghost {
-            background: var(--surface); color: var(--t2);
-            border: 1.5px solid var(--border);
-        }
+        .btn-pos { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: none; border-radius: var(--rs); font-family: inherit; font-size: .8125rem; font-weight: 600; cursor: pointer; transition: all .15s; text-decoration: none; white-space: nowrap; }
+        .btn-ghost { background: var(--surface); color: var(--t2); border: 1.5px solid var(--border); }
         .btn-ghost:hover { background: var(--s2); border-color: #9ca3af; color: var(--t1); }
-        .btn-blue  { background: var(--blue);  color: #fff; }
-        .btn-blue:hover  { background: #1d4ed8; color: #fff; }
-        .btn-green { background: var(--green); color: #fff; }
-        .btn-green:hover { background: #047857; color: #fff; }
-        .btn-amber { background: var(--amber); color: #fff; }
-        .btn-amber:hover { background: #b45309; color: #fff; }
+        .btn-blue  { background: var(--blue);  color: #fff; } .btn-blue:hover  { background: #1d4ed8; color: #fff; }
+        .btn-green { background: var(--green); color: #fff; } .btn-green:hover { background: #047857; color: #fff; }
+        .btn-amber { background: var(--amber); color: #fff; } .btn-amber:hover { background: #b45309; color: #fff; }
 
-        /* ── Main ──────────────────────────────── */
-        .main {
-            flex: 1;
-            padding: 20px 22px 60px;
-            display: flex; flex-direction: column; gap: 14px;
-            max-width: 860px;
-        }
+        .main { flex: 1; padding: 20px 22px 60px; display: flex; flex-direction: column; gap: 14px; max-width: 860px; }
 
-        /* ── Section cards ─────────────────────── */
-        .sec {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--r);
-            box-shadow: var(--sh);
-            overflow: hidden;
-        }
-        .sec-hd {
-            display: flex; align-items: center; gap: 9px;
-            padding: 11px 18px;
-            background: var(--s2);
-            border-bottom: 1px solid var(--bsoft);
-        }
-        .sec-ico {
-            width: 26px; height: 26px; border-radius: var(--rs);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 11px; flex-shrink: 0;
-        }
+        .sec { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
+        .sec-hd { display: flex; align-items: center; gap: 9px; padding: 11px 18px; background: var(--s2); border-bottom: 1px solid var(--bsoft); }
+        .sec-ico { width: 26px; height: 26px; border-radius: var(--rs); display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
         .si-cy { background: var(--cyan-bg);   color: var(--cyan);   }
         .si-bl { background: var(--blue-bg);   color: var(--blue);   }
         .si-am { background: var(--amber-bg);  color: var(--amber);  }
@@ -217,247 +241,92 @@ include 'navbar.php';
         .sec-title { font-size: .875rem; font-weight: 700; color: var(--t1); }
         .sec-body  { padding: 18px; }
 
-        /* ── Alert ─────────────────────────────── */
-        .pos-alert {
-            display: flex; align-items: flex-start; gap: 10px;
-            padding: 12px 16px; border-radius: var(--rs);
-            font-size: .875rem; font-weight: 500;
-        }
+        .pos-alert { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; border-radius: var(--rs); font-size: .875rem; font-weight: 500; }
         .pos-alert.danger  { background: var(--red-bg);   border: 1px solid var(--red-b);   border-left: 3px solid var(--red);   color: #991b1b; }
         .pos-alert.success { background: var(--green-bg); border: 1px solid var(--green-b); border-left: 3px solid var(--green); color: #065f46; }
         .pos-alert.info    { background: var(--blue-bg);  border: 1px solid var(--blue-b);  border-left: 3px solid var(--blue);  color: #1e40af; }
 
-        /* ── Form fields ───────────────────────── */
         .field-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
         .field-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-        @media (max-width: 700px) {
-            .field-grid-2, .field-grid-3 { grid-template-columns: 1fr; }
-        }
+        @media (max-width: 700px) { .field-grid-2, .field-grid-3 { grid-template-columns: 1fr; } }
 
-        .lbl {
-            display: block; font-size: .72rem; font-weight: 700;
-            text-transform: uppercase; letter-spacing: .06em;
-            color: var(--t3); margin-bottom: 5px;
-        }
+        .lbl { display: block; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--t3); margin-bottom: 5px; }
         .lbl .req { color: var(--red); margin-left: 2px; }
 
-        .fc {
-            width: 100%; height: 36px; padding: 0 10px;
-            border: 1.5px solid var(--border); border-radius: var(--rs);
-            font-family: inherit; font-size: .875rem; color: var(--t2);
-            background: var(--surface); outline: none;
-            transition: border-color .15s, box-shadow .15s;
-        }
+        .fc { width: 100%; height: 36px; padding: 0 10px; border: 1.5px solid var(--border); border-radius: var(--rs); font-family: inherit; font-size: .875rem; color: var(--t2); background: var(--surface); outline: none; transition: border-color .15s, box-shadow .15s; }
         .fc:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
-        .fc.editable {
-            background: var(--amber-bg);
-            border-color: var(--amber-b);
-        }
+        .fc.editable { background: var(--amber-bg); border-color: var(--amber-b); }
         .fc.editable:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(217,119,6,.1); }
-        .fc[readonly] {
-            background: var(--s2); color: var(--t3); cursor: default;
-        }
+        .fc[readonly] { background: var(--s2); color: var(--t3); cursor: default; }
 
-        /* ── Fetch row ─────────────────────────── */
-        .fetch-row {
-            display: flex; gap: 10px; align-items: flex-end;
-        }
+        .fetch-row { display: flex; gap: 10px; align-items: flex-end; }
         .fetch-row .fc { flex: 1; max-width: 220px; font-family: 'DM Mono', monospace; }
 
-        /* ── Bill item cards ───────────────────── */
         .item-cards { display: flex; flex-direction: column; gap: 8px; }
-
-        .item-card {
-            display: flex; align-items: center; gap: 12px;
-            padding: 10px 14px;
-            border: 2px solid var(--border);
-            border-radius: var(--rs);
-            cursor: pointer; transition: all .2s;
-            background: var(--surface);
-        }
+        .item-card { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 2px solid var(--border); border-radius: var(--rs); cursor: pointer; transition: all .2s; background: var(--surface); }
         .item-card:hover { border-color: var(--blue-b); background: var(--blue-bg); }
         .item-card.selected { border-color: var(--green); background: var(--green-bg); }
-
         .item-card input[type=radio] { accent-color: var(--green); flex-shrink: 0; }
-
         .item-card-info { flex: 1; display: flex; flex-wrap: wrap; gap: 6px 16px; }
-        .ic-tag {
-            display: inline-flex; align-items: center; gap: 4px;
-            font-size: .8rem; color: var(--t2);
-        }
+        .ic-tag { display: inline-flex; align-items: center; gap: 4px; font-size: .8rem; color: var(--t2); }
         .ic-tag strong { color: var(--t1); font-weight: 700; }
 
-        /* ── Hallmark input big ─────────────────── */
-        .hallmark-input {
-            width: 100%; height: 52px; padding: 0 14px;
-            border: 2px solid var(--border); border-radius: var(--rs);
-            font-family: 'DM Mono', monospace; font-size: 1.4rem;
-            font-weight: 800; color: var(--t1); letter-spacing: .06em;
-            outline: none; transition: border-color .15s, box-shadow .15s;
-            text-align: center;
-        }
+        .hallmark-input { width: 100%; height: 52px; padding: 0 14px; border: 2px solid var(--border); border-radius: var(--rs); font-family: 'DM Mono', monospace; font-size: 1.4rem; font-weight: 800; color: var(--t1); letter-spacing: .06em; outline: none; transition: border-color .15s, box-shadow .15s; text-align: center; }
         .hallmark-input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
 
-        /* ── Form actions ──────────────────────── */
-        .form-actions {
-            display: flex; justify-content: flex-end;
-            padding: 14px 18px;
-            background: var(--s2);
-            border-top: 1px solid var(--border);
-        }
+        /* Photo upload */
+        .photo-upload-box { display: flex; flex-direction: column; gap: 6px; }
+        .photo-preview { width: 100%; height: 110px; object-fit: cover; border-radius: var(--rs); border: 1px solid var(--border); display: none; margin-top: 6px; }
 
-        /* ─────────────────────────────────────── */
-        /* ── HALLMARK REPORT PREVIEW (untouched) ─ */
-        /* ─────────────────────────────────────── */
-        .hallmark-preview {
-            width: auto;
-            max-width: 750px;
-            background: white;
-            padding: 0;
-            border: 1px solid var(--border);
-            border-radius: var(--r);
-            box-shadow: var(--sh);
-            overflow: hidden;
-        }
+        .form-actions { display: flex; justify-content: flex-end; padding: 14px 18px; background: var(--s2); border-top: 1px solid var(--border); }
 
-        #reportPreview {
-            background: white;
-            padding: 0;
-            position: relative;
-        }
+        /* ── Hallmark Report Preview ─── */
+        .hallmark-preview { width: auto; max-width: 750px; background: white; padding: 0; border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--sh); overflow: hidden; }
 
-        #reportPreview::before {
-            content: '';
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%) rotate(-25deg);
-            width: 250px; height: 250px;
-            background-image: url('Varifiedstamp.png');
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-            opacity: 0.25;
-            z-index: 1;
-            pointer-events: none;
-        }
-
+        #reportPreview { background: white; padding: 0; position: relative; }
+        #reportPreview::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-25deg); width: 250px; height: 250px; background-image: url('Varifiedstamp.png'); background-size: contain; background-repeat: no-repeat; background-position: center; opacity: 0.25; z-index: 1; pointer-events: none; }
         #reportPreview > * { position: relative; z-index: 2; }
 
-        .report-header-title {
-            text-align: center;
-            color: #3eb1e3;
-            font-size: 32px;
-            font-weight: bold;
-            margin: 0; padding: 2px 0;
-            letter-spacing: 2px; line-height: 1;
-        }
-
+        .report-header-title { text-align: center; color: #3eb1e3; font-size: 32px; font-weight: bold; margin: 0; padding: 2px 0; letter-spacing: 2px; line-height: 1; }
         .hallmark-dotted { border-top: 2.5px dotted #000; margin: 0; }
 
-        .hallmark-info-section {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            padding: 3px 8px 3px 8px;
-            margin: 0;
-        }
-
+        .hallmark-info-section { display: flex; justify-content: space-between; align-items: flex-start; padding: 3px 8px 3px 8px; margin: 0; }
         .hallmark-left-info { flex: 1; padding: 0; line-height: 1.2; }
 
-        .customer-info-line {
-            margin: 0; padding: 0; font-size: 15px; line-height: 1.4;
-            display: block; color: #000; font-weight: 600;
-        }
-        .customer-info-line.customer-name {
-            font-size: 20px; font-weight: bold; margin-bottom: 2px;
-        }
+        .customer-info-line { margin: 0; padding: 0; font-size: 15px; line-height: 1.4; display: block; color: #000; font-weight: 600; }
+        .customer-info-line.customer-name { font-size: 20px; font-weight: bold; margin-bottom: 2px; }
+        .info-label { display: inline-block; min-width: 110px; text-align: left; font-weight: 600; }
+        .info-colon { display: inline; margin: 0 3px; }
+        .info-value { display: inline; font-weight: 600; }
 
-        .info-label   { display: inline-block; min-width: 110px; text-align: left; font-weight: 600; }
-        .info-colon   { display: inline; margin: 0 3px; }
-        .info-value   { display: inline; font-weight: 600; }
-
-        .qr-section {
-            width: 100px; text-align: center; padding: 0;
-            margin-left: 8px; flex-shrink: 0;
-        }
+        .qr-section { width: 100px; text-align: center; padding: 0; margin-left: 8px; flex-shrink: 0; }
         #qrcode { margin: 0; line-height: 0; }
         #qrcode img { display: block; margin: 0 auto; }
+        .qr-date { font-size: 10px; color: #000; font-weight: 700; line-height: 1.2; margin: 1px 0 0 0; padding: 0; }
 
-        .qr-date {
-            font-size: 10px; color: #000; font-weight: 700;
-            line-height: 1.2; margin: 1px 0 0 0; padding: 0;
-        }
+        .main-box { border: 2.5px solid #000; display: flex; margin: 0 8px; height: 100px; }
+        .checkbox-section { flex: 1; padding: 8px 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px 15px; align-content: center; }
+        .checkbox-item { display: flex; align-items: center; font-size: 12px; line-height: 1; font-weight: 600; color: #000; }
+        .checkbox-box { width: 14px; height: 14px; border: 2px solid #000; margin-right: 4px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; line-height: 1; }
 
-        .main-box {
-            border: 2.5px solid #000;
-            display: flex; margin: 0 8px; height: 100px;
-        }
-
-        .checkbox-section {
-            flex: 1; padding: 8px 12px;
-            display: grid; grid-template-columns: repeat(4, 1fr);
-            gap: 5px 15px; align-content: center;
-        }
-
-        .checkbox-item {
-            display: flex; align-items: center;
-            font-size: 12px; line-height: 1;
-            font-weight: 600; color: #000;
-        }
-        .checkbox-box {
-            width: 14px; height: 14px; border: 2px solid #000;
-            margin-right: 4px; flex-shrink: 0;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 12px; font-weight: bold; line-height: 1;
-        }
-
-        .hallmark-section {
-            width: 240px; border-left: 2.5px solid #000;
-            display: flex; flex-direction: column;
-        }
-
-        .hallmark-value-container {
-            flex: 1; display: flex;
-            align-items: center; justify-content: center;
-            border-bottom: 2.5px solid #000;
-            padding: 8px 12px; overflow: hidden;
-        }
-
-        .hallmark-value {
-            font-size: 40px; font-weight: bold; line-height: 1;
-            color: #000; text-align: center;
-            word-wrap: break-word; word-break: break-word;
-            max-width: 100%;
-            font-family: 'Times New Roman', Times, serif;
-        }
-
-        .hallmark-label {
-            font-size: 15px; font-weight: 700; text-align: center;
-            padding: 4px; color: #000; line-height: 1;
-            font-family: 'Times New Roman', Times, serif;
-        }
+        .hallmark-section { width: 240px; border-left: 2.5px solid #000; display: flex; flex-direction: column; }
+        .hallmark-value-container { flex: 1; display: flex; align-items: center; justify-content: center; border-bottom: 2.5px solid #000; padding: 8px 12px; overflow: hidden; }
+        .hallmark-value { font-size: 40px; font-weight: bold; line-height: 1; color: #000; text-align: center; word-wrap: break-word; word-break: break-word; max-width: 100%; font-family: 'Times New Roman', Times, serif; }
+        .hallmark-label { font-size: 15px; font-weight: 700; text-align: center; padding: 4px; color: #000; line-height: 1; font-family: 'Times New Roman', Times, serif; }
 
         .weight-conversion { font-size: 13px; color: #000; font-weight: 600; margin-left: 0; }
 
-        /* ── Report action bar ─────────────────── */
-        .report-actions {
-            display: flex; align-items: center;
-            justify-content: center; gap: 10px;
-            padding: 16px 18px;
-            background: var(--s2);
-            border: 1px solid var(--border);
-            border-radius: var(--r);
-            box-shadow: var(--sh);
-            flex-wrap: wrap;
-        }
+        /* Report photo at bottom */
+        .report-photo-bottom { padding: 6px 8px 4px; }
+        .report-photo-bottom img { width: 160px; height: 110px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd; display: block; }
 
-        /* ── Responsive ────────────────────────── */
+        .report-actions { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 16px 18px; background: var(--s2); border: 1px solid var(--border); border-radius: var(--r); box-shadow: var(--sh); flex-wrap: wrap; }
+
         @media (max-width: 991.98px) {
             .page-shell { margin-left: 0; }
             .top-bar    { top: 52px; }
             .main       { padding: 14px 14px 50px; max-width: 100%; }
         }
-
         @media print {
             .page-shell { margin-left: 0; }
             .top-bar, .main > *:not(.hallmark-preview) { display: none !important; }
@@ -469,7 +338,6 @@ include 'navbar.php';
 
 <div class="page-shell">
 
-    <!-- Top Bar -->
     <header class="top-bar">
         <div class="tb-ico"><i class="fas fa-stamp"></i></div>
         <div>
@@ -551,7 +419,7 @@ include 'navbar.php';
         </div>
 
         <!-- Step 3: Fill details & generate -->
-        <form method="POST" id="reportForm">
+        <form method="POST" id="reportForm" enctype="multipart/form-data">
             <input type="hidden" name="order_id"     value="<?= htmlspecialchars($order_data['order_id']) ?>">
             <input type="hidden" name="bill_item_id" id="bill_item_id" value="<?= $bill_items[0]['bill_item_id'] ?>">
             <input type="hidden" name="item_name"    id="item_name"    value="<?= htmlspecialchars($bill_items[0]['item_name']) ?>">
@@ -604,8 +472,7 @@ include 'navbar.php';
                         <div>
                             <label class="lbl">Weight (gm) <span class="req">*</span></label>
                             <input type="number" name="weight" id="weight" class="fc editable"
-                                   step="0.001" required
-                                   value="<?= $bill_items[0]['weight'] ?>">
+                                   step="0.001" required value="<?= $bill_items[0]['weight'] ?>">
                         </div>
                         <div>
                             <label class="lbl">Quantity <span class="req">*</span></label>
@@ -614,11 +481,29 @@ include 'navbar.php';
                         </div>
                     </div>
 
-                    <!-- Hallmark value big input -->
+                    <!-- Hallmark value -->
                     <div>
                         <label class="lbl">Hallmark Value <span class="req">*</span></label>
                         <input type="text" name="hallmark" id="hallmark" class="hallmark-input"
                                placeholder="e.g. 21K RJ" required>
+                    </div>
+
+                    <!-- Photo upload -->
+                    <div>
+                        <?php if ($upload_error): ?>
+                        <div class="pos-alert danger" style="margin-bottom:12px;">
+                            <i class="fas fa-circle-xmark" style="font-size:.9rem;flex-shrink:0;margin-top:1px;"></i>
+                            <?= htmlspecialchars($upload_error) ?>
+                        </div>
+                        <?php endif; ?>
+                        <div class="photo-upload-box" style="max-width:320px;">
+                            <label class="lbl">Sample Photo <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · max 200 KB</span></label>
+                            <input type="file" name="photo" id="photo" class="fc"
+                                   accept=".jpg,.jpeg,.png,.webp"
+                                   style="height:auto;padding:6px 10px;cursor:pointer;"
+                                   onchange="previewPhoto(this)">
+                            <img id="photo_preview" class="photo-preview" alt="Photo preview">
+                        </div>
                     </div>
                 </div>
 
@@ -642,9 +527,25 @@ include 'navbar.php';
                 document.getElementById('weight').value               = billItems[index].weight;
                 document.getElementById('quantity').value             = billItems[index].quantity || 1;
                 document.getElementById('service_name').value         = billItems[index].service_name;
-
                 document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected'));
                 event.currentTarget.classList.add('selected');
+            }
+
+            function previewPhoto(input) {
+                const preview = document.getElementById('photo_preview');
+                if (input.files && input.files[0]) {
+                    const file = input.files[0];
+                    if (file.size > 200 * 1024) {
+                        alert('Photo exceeds 200 KB limit. Please choose a smaller file.');
+                        input.value = '';
+                        preview.style.display = 'none';
+                        return;
+                    }
+                    preview.src = URL.createObjectURL(file);
+                    preview.style.display = 'block';
+                } else {
+                    preview.style.display = 'none';
+                }
             }
         </script>
 
@@ -727,8 +628,34 @@ include 'navbar.php';
                         <div class="hallmark-label">HallMark</div>
                     </div>
                 </div>
-            </div>
-        </div>
+
+                <?php if (!empty($report_image)): ?>
+                <!-- Bottom split: 7/12 image | 5/12 authorized signature -->
+                <div style="display:flex;gap:0;margin:6px 8px 4px;align-items:stretch;min-height:90px;">
+
+                    <!-- Left 7/12 — photo -->
+                    <div style="flex:0 0 58.333%;max-width:58.333%;display:flex;align-items:flex-end;padding-right:8px;">
+                        <img src="<?= htmlspecialchars($report_image) ?>" alt="Sample photo"
+                             style="width:160px;height:105px;object-fit:cover;border-radius:4px;border:1px solid #ddd;">
+                    </div>
+
+                    <!-- Right 5/12 — authorized signature bottom-center -->
+                    <div style="flex:0 0 41.667%;max-width:41.667%;display:flex;flex-direction:column;justify-content:flex-end;">
+                        <div style="text-align:center;font-size:11px;font-weight:bold;color:#000;padding-bottom:2px;">
+                            Authorized Signature
+                        </div>
+                    </div>
+
+                </div>
+                <?php else: ?>
+                <!-- No image — just authorized signature bottom-center -->
+                <div style="text-align:center;font-size:11px;font-weight:bold;color:#000;margin:6px 8px 4px;padding-bottom:2px;">
+                    Authorized Signature
+                </div>
+                <?php endif; ?>
+
+            </div><!-- /reportPreview -->
+        </div><!-- /hallmark-preview -->
 
         <!-- Action bar -->
         <div class="report-actions">
@@ -783,11 +710,10 @@ include 'navbar.php';
             });
 
             async function copyFullReportImage() {
-                const button      = event.target;
+                const button       = event.target;
                 const originalText = button.innerHTML;
-                button.disabled   = true;
-                button.innerHTML  = '<i class="fas fa-spinner fa-spin"></i> Capturing...';
-
+                button.disabled    = true;
+                button.innerHTML   = '<i class="fas fa-spinner fa-spin"></i> Capturing...';
                 try {
                     const canvas = await html2canvas(document.getElementById("reportPreview"), {
                         scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false
