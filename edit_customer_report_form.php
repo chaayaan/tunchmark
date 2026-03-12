@@ -26,6 +26,24 @@ $isSilver   = stripos($report['item_name'], 'silver') !== false
            || strpos($report['item_name'], 'চাঁদি') !== false
            || stripos($report['item_name'], 'rupa')  !== false;
 
+// ── Load existing images ───────────────────────────────────────────────────
+// Returns ['hallmark'=>['num'=>path], 'tunch'=>['1'=>path,'2'=>path]]
+function loadExistingImages($conn, $report_id) {
+    $imgs = [];
+    $s = mysqli_prepare($conn,
+        "SELECT img_type, img_number, img_path FROM report_images WHERE report_id = ? ORDER BY img_number ASC");
+    mysqli_stmt_bind_param($s, 'i', $report_id);
+    mysqli_stmt_execute($s);
+    $r = mysqli_stmt_get_result($s);
+    while ($row = mysqli_fetch_assoc($r)) {
+        $imgs[$row['img_type']][$row['img_number']] = $row['img_path'];
+    }
+    mysqli_stmt_close($s);
+    return $imgs;
+}
+
+$existingImages = loadExistingImages($conn, $report_id);
+
 $upload_error = null;
 
 // ── Handle form submission ─────────────────────────────────────────────────
@@ -56,46 +74,79 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $elementTypes       .= 'd';
     }
 
-    // ── Image upload (hallmark: 1 photo; tunch: 2 photos) ─────────────────
+    // ── Image upload ──────────────────────────────────────────────────────
     $allowed_types = ['image/jpeg','image/jpg','image/png','image/webp'];
-    $max_size      = 200 * 1024;
+    $max_size      = 200 * 1024; // 200 KB
     $photo_paths   = [];
 
+    // Helper: delete existing image file + DB row for a given slot
+    $deleteExistingSlot = function($type, $num) use ($conn, $report_id, $existingImages) {
+        $oldPath = $existingImages[$type][$num] ?? null;
+        if ($oldPath && file_exists(__DIR__ . '/' . $oldPath)) {
+            @unlink(__DIR__ . '/' . $oldPath);
+        }
+        $d = mysqli_prepare($conn,
+            "DELETE FROM report_images WHERE report_id=? AND img_type=? AND img_number=?");
+        mysqli_stmt_bind_param($d, 'isi', $report_id, $type, $num);
+        mysqli_stmt_execute($d);
+        mysqli_stmt_close($d);
+    };
+
     if ($isHallmark) {
+        // Handle "remove" checkbox
+        if (!empty($_POST['remove_photo_hallmark'])) {
+            $deleteExistingSlot('hallmark', 1);
+        }
+        // Handle new upload
         if (isset($_FILES['photo']) && $_FILES['photo']['error'] !== UPLOAD_ERR_NO_FILE) {
             $file = $_FILES['photo'];
-            if ($file['error'] !== UPLOAD_ERR_OK)  { $upload_error = "Upload error."; }
-            elseif ($file['size'] > $max_size)      { $upload_error = "Photo exceeds 200 KB limit."; }
+            if ($file['error'] !== UPLOAD_ERR_OK)       { $upload_error = "Upload error."; }
+            elseif ($file['size'] > $max_size)           { $upload_error = "Photo exceeds 200 KB limit."; }
             else {
                 $finfo = new finfo(FILEINFO_MIME_TYPE);
                 $mime  = $finfo->file($file['tmp_name']);
-                if (!in_array($mime, $allowed_types)) { $upload_error = "Only JPG/PNG/WEBP allowed."; }
+                if (!in_array($mime, $allowed_types))    { $upload_error = "Only JPG/PNG/WEBP allowed."; }
                 else {
-                    $ext  = pathinfo($file['name'], PATHINFO_EXTENSION);
-                    $dir  = 'uploads/hallmark_reports/';
+                    $ext_map = ['image/jpeg'=>'jpg','image/jpg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+                    $ext  = $ext_map[$mime] ?? 'jpg';
+                    $dir  = __DIR__ . '/uploads/hallmark_reports/';
                     if (!is_dir($dir)) mkdir($dir, 0755, true);
-                    $dest = $dir . "hallmark_{$report_id}." . strtolower($ext);
-                    if (!move_uploaded_file($file['tmp_name'], $dest)) $upload_error = "Could not save photo.";
-                    else $photo_paths[1] = ['path' => $dest, 'type' => 'hallmark', 'num' => 1];
+                    $filename = "hallmark_{$report_id}.{$ext}";
+                    $dest     = $dir . $filename;
+                    $relPath  = "uploads/hallmark_reports/{$filename}";
+                    // Delete old file first
+                    $deleteExistingSlot('hallmark', 1);
+                    if (!move_uploaded_file($file['tmp_name'], $dest)) { $upload_error = "Could not save photo."; }
+                    else $photo_paths[1] = ['path' => $relPath, 'type' => 'hallmark', 'num' => 1];
                 }
             }
         }
     } else {
         for ($n = 1; $n <= 2; $n++) {
+            // Handle "remove" checkbox
+            if (!empty($_POST['remove_photo_' . $n])) {
+                $deleteExistingSlot('tunch', $n);
+            }
+            // Handle new upload
             $key = 'photo_' . $n;
             if (!isset($_FILES[$key]) || $_FILES[$key]['error'] === UPLOAD_ERR_NO_FILE) continue;
             $file = $_FILES[$key];
-            if ($file['error'] !== UPLOAD_ERR_OK)  { $upload_error = "Upload error on photo $n."; break; }
-            if ($file['size'] > $max_size)          { $upload_error = "Photo $n exceeds 200 KB limit."; break; }
+            if ($file['error'] !== UPLOAD_ERR_OK)       { $upload_error = "Upload error on photo $n."; break; }
+            if ($file['size'] > $max_size)              { $upload_error = "Photo $n exceeds 200 KB limit."; break; }
             $finfo = new finfo(FILEINFO_MIME_TYPE);
             $mime  = $finfo->file($file['tmp_name']);
-            if (!in_array($mime, $allowed_types))   { $upload_error = "Photo $n: only JPG/PNG/WEBP allowed."; break; }
-            $ext  = pathinfo($file['name'], PATHINFO_EXTENSION);
-            $dir  = 'uploads/tunch_reports/';
+            if (!in_array($mime, $allowed_types))       { $upload_error = "Photo $n: only JPG/PNG/WEBP allowed."; break; }
+            $ext_map = ['image/jpeg'=>'jpg','image/jpg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+            $ext  = $ext_map[$mime] ?? 'jpg';
+            $dir  = __DIR__ . '/uploads/tunch_reports/';
             if (!is_dir($dir)) mkdir($dir, 0755, true);
-            $dest = $dir . "tunch_{$report_id}_{$n}." . strtolower($ext);
+            $filename = "tunch_{$report_id}_{$n}.{$ext}";
+            $dest     = $dir . $filename;
+            $relPath  = "uploads/tunch_reports/{$filename}";
+            // Delete old file first
+            $deleteExistingSlot('tunch', $n);
             if (!move_uploaded_file($file['tmp_name'], $dest)) { $upload_error = "Could not save photo $n."; break; }
-            $photo_paths[$n] = ['path' => $dest, 'type' => 'tunch', 'num' => $n];
+            $photo_paths[$n] = ['path' => $relPath, 'type' => 'tunch', 'num' => $n];
         }
     }
 
@@ -122,21 +173,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              $gold_purity_percent, $silver_purity_percent, $karat, $hallmark, $gold_val, $joint_val],
             $elementVals, [$report_id]
         );
-        $bindParams = [$types];
-        foreach ($params as &$p) $bindParams[] = &$p;
-        call_user_func_array([$stmt, 'bind_param'], $bindParams);
+        $bp = [$types];
+        foreach ($params as &$p) $bp[] = &$p;
+        call_user_func_array([$stmt, 'bind_param'], $bp);
 
         if (mysqli_stmt_execute($stmt)) {
             mysqli_stmt_close($stmt);
+            // Insert new image rows
             foreach ($photo_paths as $item) {
-                $di = mysqli_prepare($conn,
-                    "DELETE FROM report_images WHERE report_id=? AND img_type=? AND img_number=?");
-                mysqli_stmt_bind_param($di, "isi", $report_id, $item['type'], $item['num']);
-                mysqli_stmt_execute($di); mysqli_stmt_close($di);
                 $ii = mysqli_prepare($conn,
                     "INSERT INTO report_images (report_id, img_type, img_number, img_path) VALUES (?,?,?,?)");
-                mysqli_stmt_bind_param($ii, "isis", $report_id, $item['type'], $item['num'], $item['path']);
-                mysqli_stmt_execute($ii); mysqli_stmt_close($ii);
+                mysqli_stmt_bind_param($ii, 'isis', $report_id, $item['type'], $item['num'], $item['path']);
+                mysqli_stmt_execute($ii);
+                mysqli_stmt_close($ii);
             }
             header('Location: view_customer_reports.php');
             exit();
@@ -146,7 +195,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Re-populate on error
+    // Re-populate on error — reload fresh image state
+    $existingImages = loadExistingImages($conn, $report_id);
     $report['customer_name']         = $customer_name;
     $report['address']               = $address;
     $report['manufacturer']          = $manufacturer;
@@ -200,8 +250,6 @@ require_once 'navbar.php';
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{font-family:'DM Sans',sans-serif;font-size:14px;background:var(--bg);color:var(--t1);-webkit-font-smoothing:antialiased;min-height:100vh;}
         .page-shell{margin-left:200px;min-height:100vh;display:flex;flex-direction:column;}
-
-        /* ── Top bar ── */
         .top-bar{position:sticky;top:0;z-index:200;height:54px;background:var(--surface);border-bottom:1px solid var(--border);box-shadow:var(--sh);display:flex;align-items:center;padding:0 22px;gap:12px;flex-shrink:0;}
         .tb-ico{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
         .tb-ico-vi{background:var(--violet-bg);color:var(--violet);}
@@ -217,25 +265,18 @@ require_once 'navbar.php';
         .chip-hallmark{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-b);}
         .chip-tunch{background:var(--violet-bg);color:var(--violet);border:1px solid var(--violet-b);}
         .chip-silver{background:var(--cyan-bg);color:var(--cyan);border:1px solid var(--cyan-b);}
-
-        /* ── Buttons ── */
         .btn-pos{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border:none;border-radius:var(--rs);font-family:inherit;font-size:.8125rem;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none;white-space:nowrap;}
         .btn-ghost{background:var(--surface);color:var(--t2);border:1.5px solid var(--border);}
         .btn-ghost:hover{background:var(--s2);border-color:#9ca3af;color:var(--t1);}
         .btn-green{background:var(--green);color:#fff;} .btn-green:hover{background:#047857;}
         .btn-amber{background:var(--amber);color:#fff;} .btn-amber:hover{background:#b45309;}
         .btn-violet{background:var(--violet);color:#fff;} .btn-violet:hover{background:#6d28d9;}
-
-        /* ── Layout ── */
+        .btn-red{background:var(--red);color:#fff;border:none;} .btn-red:hover{background:#b91c1c;}
         .split-body{padding:18px 16px 60px;}
         .split-left{display:flex;flex-direction:column;gap:14px;}
         .split-right{display:flex;flex-direction:column;gap:14px;}
         .col-divider{border-left:2px solid var(--border);}
-
-        /* single-col for hallmark */
         .single-body{padding:18px 16px 60px;max-width:780px;}
-
-        /* ── Sections ── */
         .sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;}
         .sec-hd{display:flex;align-items:center;gap:9px;padding:11px 18px;background:var(--s2);border-bottom:1px solid var(--bsoft);}
         .sec-ico{width:26px;height:26px;border-radius:var(--rs);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
@@ -249,13 +290,9 @@ require_once 'navbar.php';
         .note-ed{color:var(--amber);}
         .note-ro{color:var(--t4);font-weight:500;}
         .sec-body{padding:18px;}
-
-        /* ── Alerts ── */
         .pos-alert{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:var(--rs);font-size:.875rem;font-weight:500;}
         .pos-alert.danger{background:var(--red-bg);border:1px solid var(--red-b);border-left:3px solid var(--red);color:#991b1b;}
         .pos-alert.amber{background:var(--amber-bg);border:1px solid var(--amber-b);border-left:3px solid var(--amber);color:#92400e;}
-
-        /* ── Form controls ── */
         .lbl{display:block;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:5px;}
         .req{color:var(--red);margin-left:2px;}
         .fc{width:100%;height:36px;padding:0 10px;border:1.5px solid var(--border);border-radius:var(--rs);font-family:inherit;font-size:.875rem;color:var(--t2);background:var(--surface);outline:none;transition:border-color .15s,box-shadow .15s;}
@@ -266,19 +303,36 @@ require_once 'navbar.php';
         textarea.fc{height:auto;padding:8px 10px;resize:vertical;}
         .xrf-textarea{font-family:'DM Mono',monospace;font-size:12px;line-height:1.6;}
         .parse-btn{margin-top:8px;}
-
-        /* ── Photo ── */
-        .photo-upload-box{display:flex;flex-direction:column;gap:6px;}
-        .photo-preview{width:100%;height:110px;object-fit:cover;border-radius:var(--rs);border:1px solid var(--border);display:none;margin-top:6px;}
-
-        /* ── Form footer ── */
         .form-actions{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;background:var(--s2);border-top:1px solid var(--border);}
-
-        /* ── Hallmark value input ── */
-        .hallmark-input{width:100%;height:56px;padding:0 14px;border:2px solid var(--border);border-radius:var(--rs);font-family:'DM Mono',monospace;font-size:1.5rem;font-weight:800;color:var(--t1);letter-spacing:.06em;outline:none;transition:border-color .15s,box-shadow .15s;text-align:center;background:var(--amber-bg);border-color:var(--amber-b);}
+        .hallmark-input{width:100%;height:56px;padding:0 14px;border:2px solid var(--amber-b);border-radius:var(--rs);font-family:'DM Mono',monospace;font-size:1.5rem;font-weight:800;color:var(--t1);letter-spacing:.06em;outline:none;transition:border-color .15s,box-shadow .15s;text-align:center;background:var(--amber-bg);}
         .hallmark-input:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(217,119,6,.12);}
 
-        /* ── Responsive ── */
+        /* ── Photo slot ── */
+        .photo-slot{display:flex;flex-direction:column;gap:8px;}
+        /* Existing image preview box */
+        .existing-img-wrap{position:relative;display:inline-block;border-radius:var(--rs);overflow:hidden;border:1px solid var(--border);}
+        .existing-img-wrap img{display:block;width:100%;height:120px;object-fit:cover;}
+        /* Strikethrough overlay when marked for removal */
+        .existing-img-wrap.marked::after{
+            content:'';position:absolute;inset:0;
+            background:rgba(220,38,38,.45);
+        }
+        .existing-img-wrap.marked img{opacity:.4;}
+        /* Remove toggle button */
+        .img-remove-btn{
+            display:inline-flex;align-items:center;gap:5px;
+            height:28px;padding:0 10px;border:none;border-radius:var(--rs);
+            font-family:inherit;font-size:.75rem;font-weight:600;cursor:pointer;
+            transition:all .15s;
+        }
+        .img-remove-btn.remove{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b);}
+        .img-remove-btn.remove:hover{background:var(--red);color:#fff;}
+        .img-remove-btn.undo{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b);}
+        .img-remove-btn.undo:hover{background:var(--green);color:#fff;}
+        /* New file input */
+        .new-file-wrap{display:flex;flex-direction:column;gap:6px;}
+        .photo-preview{width:100%;height:110px;object-fit:cover;border-radius:var(--rs);border:1px solid var(--border);display:none;margin-top:4px;}
+
         @media(max-width:991.98px){
             .page-shell{margin-left:0;}
             .top-bar{top:52px;}
@@ -313,19 +367,12 @@ require_once 'navbar.php';
         <a href="view_customer_reports.php" class="btn-pos btn-ghost">
             <i class="fas fa-arrow-left" style="font-size:.6rem;"></i> Back
         </a>
-        <?php if ($isHallmark): ?>
-        <a href="create_hallmark_report.php?report_id=<?= $report_id ?>" class="btn-pos btn-ghost">
+        <a href="<?= $isHallmark ? 'create_hallmark_report.php' : 'create_tunch_report.php' ?>?report_id=<?= $report_id ?>" class="btn-pos btn-ghost">
             <i class="fas fa-eye" style="font-size:.6rem;"></i> View Report
         </a>
-        <?php else: ?>
-        <a href="create_tunch_report.php?report_id=<?= $report_id ?>" class="btn-pos btn-ghost">
-            <i class="fas fa-eye" style="font-size:.6rem;"></i> View Report
-        </a>
-        <?php endif; ?>
     </div>
 </header>
 
-<!-- ══ ALERTS ══ -->
 <?php if (isset($error_message) || $upload_error): ?>
 <div style="padding:14px 16px 0;">
     <div class="pos-alert danger">
@@ -336,15 +383,12 @@ require_once 'navbar.php';
 <?php endif; ?>
 
 
-<?php /* ══════════════════════════════════════════════════════════════
-       ║  HALLMARK BRANCH — matches create_hallmark_report.php UI
-       ══════════════════════════════════════════════════════════════ */ ?>
+<?php /* ══ HALLMARK BRANCH ══ */ ?>
 <?php if ($isHallmark): ?>
-
 <div class="hallmark-main">
 <form method="POST" id="editForm" enctype="multipart/form-data">
 
-    <!-- Step 1 — Order Info (read-only, like item-card info block) -->
+    <!-- Step 1 — Order Info -->
     <div class="sec">
         <div class="sec-hd">
             <span class="sec-ico si-cy"><i class="fas fa-lock"></i></span>
@@ -354,20 +398,17 @@ require_once 'navbar.php';
             </span>
         </div>
         <div class="sec-body">
-            <!-- Styled like an item card to match create page aesthetic -->
             <div style="display:flex;flex-wrap:wrap;gap:8px 20px;padding:8px 12px;border:2px solid var(--green);background:var(--green-bg);border-radius:var(--rs);">
-                <span style="display:inline-flex;align-items:center;gap:4px;font-size:.8rem;color:var(--t2);">
+                <span style="font-size:.8rem;color:var(--t2);">
                     <strong style="color:var(--t1);"><?= htmlspecialchars($report['item_name']) ?></strong>
                 </span>
-                <span style="display:inline-flex;align-items:center;gap:4px;font-size:.8rem;color:var(--t2);">
+                <span style="font-size:.8rem;color:var(--t2);">
                     Bill No: <strong style="color:var(--t1);"><?= htmlspecialchars($report['order_id']) ?></strong>
                 </span>
-                <span style="display:inline-flex;align-items:center;gap:4px;font-size:.8rem;color:var(--t2);">
+                <span style="font-size:.8rem;color:var(--t2);">
                     Report ID: <strong style="color:var(--t1);font-family:'DM Mono',monospace;">#<?= $report_id ?></strong>
                 </span>
-                <span style="display:inline-flex;align-items:center;gap:4px;font-size:.8rem;color:var(--blue);">
-                    <?= htmlspecialchars($report['service_name']) ?>
-                </span>
+                <span style="font-size:.8rem;color:var(--blue);"><?= htmlspecialchars($report['service_name']) ?></span>
             </div>
         </div>
     </div>
@@ -378,7 +419,7 @@ require_once 'navbar.php';
             <span class="sec-ico si-bl"><i class="fas fa-user"></i></span>
             <span class="sec-title">Step 2 — Customer Information</span>
             <span style="margin-left:auto;font-size:.75rem;color:var(--amber);font-weight:600;">
-                <i class="fas fa-pen" style="font-size:.6rem;"></i> Highlighted fields are editable
+                <i class="fas fa-pen" style="font-size:.6rem;"></i> Editable
             </span>
         </div>
         <div class="sec-body">
@@ -404,7 +445,7 @@ require_once 'navbar.php';
         </div>
     </div>
 
-    <!-- Step 3 — Sample Details (matches create_hallmark Step 3) -->
+    <!-- Step 3 — Sample Details + Photo -->
     <div class="sec">
         <div class="sec-hd">
             <span class="sec-ico si-am"><i class="fas fa-gem"></i></span>
@@ -412,53 +453,65 @@ require_once 'navbar.php';
         </div>
         <div class="sec-body" style="display:flex;flex-direction:column;gap:18px;">
 
-            <!-- Weight / Qty / Item (read-only) -->
             <div class="field-grid-3">
                 <div>
                     <label class="lbl">Item Name</label>
-                    <input type="text" class="fc" readonly
-                           value="<?= htmlspecialchars($report['item_name']) ?>">
-                    <div style="font-size:.72rem;color:var(--t4);margin-top:4px;">Auto-marked in checkbox</div>
+                    <input type="text" class="fc readonly" readonly value="<?= htmlspecialchars($report['item_name']) ?>">
                 </div>
                 <div>
                     <label class="lbl">Weight (gm) <span class="req">*</span></label>
-                    <input type="number" name="weight" class="fc editable"
-                           step="0.001" required value="<?= htmlspecialchars($report['weight']) ?>">
+                    <input type="number" name="weight" class="fc editable" step="0.001" required
+                           value="<?= htmlspecialchars($report['weight']) ?>">
                 </div>
                 <div>
                     <label class="lbl">Quantity <span class="req">*</span></label>
-                    <input type="number" name="quantity" class="fc editable"
-                           required min="1" value="<?= htmlspecialchars($report['quantity'] ?: '1') ?>">
+                    <input type="number" name="quantity" class="fc editable" required min="1"
+                           value="<?= htmlspecialchars($report['quantity'] ?: '1') ?>">
                 </div>
             </div>
 
-            <!-- Hallmark value — full-width below, same as create page -->
             <div>
                 <label class="lbl">Hallmark Value <span class="req">*</span></label>
-                <input type="text" name="hallmark" class="hallmark-input"
-                       required value="<?= htmlspecialchars($report['hallmark'] ?? '') ?>"
-                       placeholder="e.g. 21K RJ">
+                <input type="text" name="hallmark" class="hallmark-input" required
+                       value="<?= htmlspecialchars($report['hallmark'] ?? '') ?>" placeholder="e.g. 21K RJ">
             </div>
 
-            <!-- Photo upload — same layout as create page -->
+            <!-- Photo slot (hallmark: 1 photo) -->
             <div>
-                <?php if ($upload_error): ?>
-                <div class="pos-alert danger" style="margin-bottom:12px;">
-                    <i class="fas fa-circle-xmark" style="font-size:.9rem;flex-shrink:0;margin-top:1px;"></i>
-                    <?= htmlspecialchars($upload_error) ?>
-                </div>
-                <?php endif; ?>
-                <div class="photo-upload-box" style="max-width:320px;">
-                    <label class="lbl">Sample Photo
-                        <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · replaces existing · max 200 KB</span>
-                    </label>
-                    <input type="file" name="photo" id="photo" class="fc"
-                           accept=".jpg,.jpeg,.png,.webp"
-                           style="height:auto;padding:6px 10px;cursor:pointer;"
-                           onchange="previewHallmarkPhoto(this)">
-                    <img id="photo_preview" class="photo-preview" alt="Photo preview">
+                <label class="lbl">Sample Photo
+                    <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">
+                        Optional · max 200 KB · JPG/PNG/WEBP
+                    </span>
+                </label>
+                <?php
+                $hImg = $existingImages['hallmark'][1] ?? null;
+                ?>
+                <div class="photo-slot" style="max-width:320px;">
+                    <?php if ($hImg): ?>
+                    <!-- Existing image -->
+                    <div class="existing-img-wrap" id="hallmark_img_wrap">
+                        <img src="<?= htmlspecialchars($hImg) ?>" alt="Existing photo">
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <input type="hidden" name="remove_photo_hallmark" id="remove_hallmark_input" value="">
+                        <button type="button" id="remove_hallmark_btn"
+                                class="img-remove-btn remove"
+                                onclick="toggleRemove('hallmark')">
+                            <i class="fas fa-trash-can" style="font-size:.65rem;"></i> Remove existing
+                        </button>
+                        <span style="font-size:.75rem;color:var(--t4);">or upload a new one below</span>
+                    </div>
+                    <?php endif; ?>
+                    <div class="new-file-wrap">
+                        <input type="file" name="photo" id="photo" class="fc"
+                               accept=".jpg,.jpeg,.png,.webp"
+                               style="height:auto;padding:6px 10px;cursor:pointer;"
+                               onchange="previewAndAutoMark(this,'photo_preview_h','hallmark')">
+                        <img id="photo_preview_h" class="photo-preview" alt="New photo preview">
+                    </div>
                 </div>
             </div>
+
         </div>
 
         <div class="form-actions">
@@ -471,7 +524,7 @@ require_once 'navbar.php';
         </div>
     </div>
 
-    <!-- hidden dummy fields to satisfy shared POST handler -->
+    <!-- Dummy hidden fields -->
     <input type="hidden" name="purity_percent" value="">
     <input type="hidden" name="karat" value="">
     <input type="hidden" name="gold_val" value="">
@@ -484,9 +537,7 @@ require_once 'navbar.php';
 </div><!-- /hallmark-main -->
 
 
-<?php /* ══════════════════════════════════════════════════════════════
-       ║  TUNCH BRANCH — split left/right, matches create_tunch UI
-       ══════════════════════════════════════════════════════════════ */ ?>
+<?php /* ══ TUNCH BRANCH ══ */ ?>
 <?php else: ?>
 
 <div class="split-body">
@@ -497,7 +548,7 @@ require_once 'navbar.php';
 <div class="col-12 col-lg-6 pe-lg-3">
 <div class="split-left">
 
-    <!-- Step 1 — Order Info (read-only) -->
+    <!-- Step 1 — Order Info -->
     <div class="sec">
         <div class="sec-hd">
             <span class="sec-ico si-bl"><i class="fas fa-lock"></i></span>
@@ -565,7 +616,7 @@ require_once 'navbar.php';
         </div>
     </div>
 
-    <!-- Step 3 — XRF Paste -->
+    <!-- Step 3 — XRF -->
     <div class="sec">
         <div class="sec-hd">
             <span class="sec-ico si-vi"><i class="fas fa-paste"></i></span>
@@ -575,7 +626,7 @@ require_once 'navbar.php';
         <div class="sec-body" style="display:flex;flex-direction:column;gap:12px;">
             <div class="pos-alert amber">
                 <i class="fas fa-bolt" style="font-size:.9rem;flex-shrink:0;margin-top:1px;"></i>
-                <span>Paste new XRF data and click <strong>Auto-Extract</strong> — values fill on the right automatically. Or edit each field directly.</span>
+                <span>Paste new XRF data and click <strong>Auto-Extract</strong> — values fill on the right. Or edit each field directly.</span>
             </div>
             <div>
                 <label class="lbl">Raw XRF Data</label>
@@ -606,11 +657,8 @@ require_once 'navbar.php';
         </div>
         <div class="sec-body" style="display:flex;flex-direction:column;gap:14px;">
 
-            <!-- Purity & Karat -->
             <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--violet-bg);border:1px solid #ddd6fe;border-radius:7px;">
-                <span style="font-size:.78rem;font-weight:700;color:var(--violet);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;">
-                    <?= $purityLabel ?>
-                </span>
+                <span style="font-size:.78rem;font-weight:700;color:var(--violet);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;"><?= $purityLabel ?></span>
                 <input type="number" name="purity_percent" id="purity_percent" class="fc editable"
                        step="0.001" min="0" max="100" placeholder="0.000"
                        value="<?= htmlspecialchars($purityValue ?? '') ?>"
@@ -622,7 +670,6 @@ require_once 'navbar.php';
                        style="font-family:'DM Mono',monospace;height:30px;padding:0 6px;width:80px;">
             </div>
 
-            <!-- Element grid -->
             <table style="width:100%;border-collapse:collapse;">
             <?php $rows = array_chunk($elemOrder, 3); foreach ($rows as $row): ?>
             <tr>
@@ -646,7 +693,6 @@ require_once 'navbar.php';
             <?php endforeach; ?>
             </table>
 
-            <!-- Gold & Joint -->
             <div style="display:flex;align-items:center;gap:24px;padding:10px 14px;background:var(--s2);border:1px solid var(--border);border-radius:7px;">
                 <span style="font-size:.78rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;">Gold &amp; Joint</span>
                 <div style="display:flex;align-items:center;gap:8px;flex:1;">
@@ -676,7 +722,7 @@ require_once 'navbar.php';
         </div>
     </div><!-- /Step 4 -->
 
-    <!-- Step 5 — Sample Photos + Save -->
+    <!-- Step 5 — Sample Photos -->
     <div class="sec">
         <div class="sec-hd">
             <span class="sec-ico si-am"><i class="fas fa-images"></i></span>
@@ -685,22 +731,43 @@ require_once 'navbar.php';
         </div>
         <div class="sec-body">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-                <div class="photo-upload-box">
-                    <label class="lbl">Photo 1 <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">(replaces existing)</span></label>
-                    <input type="file" name="photo_1" id="photo_1" class="fc"
-                           accept=".jpg,.jpeg,.png,.webp"
-                           style="height:auto;padding:6px 10px;cursor:pointer;"
-                           onchange="previewPhoto(this,'prev1')">
-                    <img id="prev1" class="photo-preview" alt="Photo 1 preview">
+
+                <?php for ($n = 1; $n <= 2; $n++):
+                    $tImg = $existingImages['tunch'][$n] ?? null;
+                ?>
+                <div class="photo-slot">
+                    <label class="lbl">Photo <?= $n ?>
+                        <?php if (!$tImg): ?>
+                        <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">No image yet</span>
+                        <?php endif; ?>
+                    </label>
+
+                    <?php if ($tImg): ?>
+                    <!-- Existing image -->
+                    <div class="existing-img-wrap" id="tunch_img_wrap_<?= $n ?>">
+                        <img src="<?= htmlspecialchars($tImg) ?>" alt="Photo <?= $n ?>">
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                        <input type="hidden" name="remove_photo_<?= $n ?>" id="remove_input_<?= $n ?>" value="">
+                        <button type="button" id="remove_btn_<?= $n ?>"
+                                class="img-remove-btn remove"
+                                onclick="toggleRemove('tunch_<?= $n ?>')">
+                            <i class="fas fa-trash-can" style="font-size:.65rem;"></i> Remove
+                        </button>
+                        <span style="font-size:.72rem;color:var(--t4);">or upload new below</span>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="new-file-wrap">
+                        <input type="file" name="photo_<?= $n ?>" id="photo_<?= $n ?>" class="fc"
+                               accept=".jpg,.jpeg,.png,.webp"
+                               style="height:auto;padding:6px 10px;cursor:pointer;"
+                               onchange="previewAndAutoMark(this,'prev<?= $n ?>','tunch_<?= $n ?>')">
+                        <img id="prev<?= $n ?>" class="photo-preview" alt="Photo <?= $n ?> preview">
+                    </div>
                 </div>
-                <div class="photo-upload-box">
-                    <label class="lbl">Photo 2 <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">(replaces existing)</span></label>
-                    <input type="file" name="photo_2" id="photo_2" class="fc"
-                           accept=".jpg,.jpeg,.png,.webp"
-                           style="height:auto;padding:6px 10px;cursor:pointer;"
-                           onchange="previewPhoto(this,'prev2')">
-                    <img id="prev2" class="photo-preview" alt="Photo 2 preview">
-                </div>
+                <?php endfor; ?>
+
             </div>
         </div>
         <div class="form-actions">
@@ -729,64 +796,42 @@ const GOLD_ELEMENTS   = <?= json_encode($GOLD_ELEMENTS) ?>;
 const SILVER_ELEMENTS = <?= json_encode($SILVER_ELEMENTS) ?>;
 const isSilver = <?= $isSilver ? 'true' : 'false' ?>;
 
+// ── XRF ──────────────────────────────────────────────────────────────────
 function parseXRFData() {
     const input = document.getElementById('xrf_raw').value;
-
-    const purityRx = isSilver
-        ? /Silver\s+Purity\s*[:\s]+([\d.]+)\s*%/i
-        : /Gold\s+Purity\s*[:\s]+([\d.]+)\s*%/i;
-    const purityM = input.match(purityRx);
-    if (purityM) document.getElementById('purity_percent').value = purityM[1];
-
-    const karatM = input.match(/Karat\s*[:\s]+([\d.]+)/i);
-    if (karatM) document.getElementById('karat').value = karatM[1];
-
-    const allElements = [...new Set([...GOLD_ELEMENTS, ...SILVER_ELEMENTS])];
-    allElements.forEach(el => {
-        const field = document.getElementById('elem_' + el.toLowerCase());
-        if (!field) return;
-        const rx    = new RegExp(el + '\\s*[:\\s]+([\\d.]+|--------)', 'i');
-        const match = input.match(rx);
-        if (match) field.value = match[1].replace('%','');
+    const purityRx = isSilver ? /Silver\s+Purity\s*[:\s]+([\d.]+)\s*%/i : /Gold\s+Purity\s*[:\s]+([\d.]+)\s*%/i;
+    const pM = input.match(purityRx);
+    if (pM) document.getElementById('purity_percent').value = pM[1];
+    const kM = input.match(/Karat\s*[:\s]+([\d.]+)/i);
+    if (kM) document.getElementById('karat').value = kM[1];
+    const allEls = [...new Set([...GOLD_ELEMENTS, ...SILVER_ELEMENTS])];
+    allEls.forEach(el => {
+        const f = document.getElementById('elem_' + el.toLowerCase());
+        if (!f) return;
+        const m = input.match(new RegExp(el + '\\s*[:\\s]+([\\d.]+|--------)', 'i'));
+        if (m) f.value = m[1].replace('%','');
     });
-
-    const goldM  = input.match(/\bGold\s*[:\s]+([\d.]+)/i);
-    const jointM = input.match(/Joint\s*[:\s]+([\d.]+)/i);
-    if (goldM)  document.getElementById('gold_val').value  = goldM[1];
-    if (jointM) document.getElementById('joint_val').value = jointM[1];
-
-    const btn  = document.querySelector('.parse-btn');
-    const orig = btn.innerHTML;
+    const gM = input.match(/\bGold\s*[:\s]+([\d.]+)/i);
+    const jM = input.match(/Joint\s*[:\s]+([\d.]+)/i);
+    if (gM) document.getElementById('gold_val').value  = gM[1];
+    if (jM) document.getElementById('joint_val').value = jM[1];
+    const btn = document.querySelector('.parse-btn'), orig = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-check"></i> Extracted!';
     btn.style.background = '#059669';
     setTimeout(() => { btn.innerHTML = orig; btn.style.background = ''; }, 2000);
 }
 
 function validateKarat(inp) {
-    const v   = parseFloat(inp.value);
+    const v = parseFloat(inp.value);
     const err = document.getElementById(inp.id + '_err');
     if (!err) return;
     const bad = inp.value !== '' && (isNaN(v) || v < 0 || v > 24);
-    err.style.display    = bad ? 'block' : 'none';
+    err.style.display     = bad ? 'block' : 'none';
     inp.style.borderColor = bad ? 'var(--red)' : '';
 }
 
-function previewHallmarkPhoto(input) {
-    const preview = document.getElementById('photo_preview');
-    const file    = input.files[0];
-    if (!file) { preview.style.display = 'none'; return; }
-    if (file.size > 200 * 1024) {
-        alert('Photo exceeds 200 KB limit. Please choose a smaller image.');
-        input.value = '';
-        preview.style.display = 'none';
-        return;
-    }
-    const reader = new FileReader();
-    reader.onload = e => { preview.src = e.target.result; preview.style.display = 'block'; };
-    reader.readAsDataURL(file);
-}
-
-function previewPhoto(input, previewId) {
+// ── Photo: preview + auto-mark existing for removal ───────────────────────
+function previewAndAutoMark(input, previewId, slotKey) {
     const preview = document.getElementById(previewId);
     const file    = input.files[0];
     if (!file) { preview.style.display = 'none'; return; }
@@ -796,9 +841,61 @@ function previewPhoto(input, previewId) {
         preview.style.display = 'none';
         return;
     }
-    const reader = new FileReader();
-    reader.onload = e => { preview.src = e.target.result; preview.style.display = 'block'; };
-    reader.readAsDataURL(file);
+    // Show new preview
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = 'block';
+    // Automatically mark existing image for removal
+    markForRemoval(slotKey, true);
+}
+
+// ── Toggle remove existing image ──────────────────────────────────────────
+// slotKey: 'hallmark' | 'tunch_1' | 'tunch_2'
+function toggleRemove(slotKey) {
+    const currentlyMarked = isMarked(slotKey);
+    markForRemoval(slotKey, !currentlyMarked);
+}
+
+function isMarked(slotKey) {
+    const inp = getRemoveInput(slotKey);
+    return inp && inp.value === '1';
+}
+
+function markForRemoval(slotKey, mark) {
+    const inp  = getRemoveInput(slotKey);
+    const wrap = getImgWrap(slotKey);
+    const btn  = getRemoveBtn(slotKey);
+    if (!inp) return;
+
+    inp.value = mark ? '1' : '';
+    if (wrap) wrap.classList.toggle('marked', mark);
+    if (btn) {
+        if (mark) {
+            btn.className = 'img-remove-btn undo';
+            btn.innerHTML = '<i class="fas fa-rotate-left" style="font-size:.65rem;"></i> Undo remove';
+        } else {
+            btn.className = 'img-remove-btn remove';
+            btn.innerHTML = '<i class="fas fa-trash-can" style="font-size:.65rem;"></i> Remove' + (slotKey === 'hallmark' ? ' existing' : '');
+        }
+    }
+}
+
+function getRemoveInput(slotKey) {
+    if (slotKey === 'hallmark')  return document.getElementById('remove_hallmark_input');
+    if (slotKey === 'tunch_1')   return document.getElementById('remove_input_1');
+    if (slotKey === 'tunch_2')   return document.getElementById('remove_input_2');
+    return null;
+}
+function getImgWrap(slotKey) {
+    if (slotKey === 'hallmark')  return document.getElementById('hallmark_img_wrap');
+    if (slotKey === 'tunch_1')   return document.getElementById('tunch_img_wrap_1');
+    if (slotKey === 'tunch_2')   return document.getElementById('tunch_img_wrap_2');
+    return null;
+}
+function getRemoveBtn(slotKey) {
+    if (slotKey === 'hallmark')  return document.getElementById('remove_hallmark_btn');
+    if (slotKey === 'tunch_1')   return document.getElementById('remove_btn_1');
+    if (slotKey === 'tunch_2')   return document.getElementById('remove_btn_2');
+    return null;
 }
 </script>
 
