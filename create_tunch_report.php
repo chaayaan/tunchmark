@@ -607,7 +607,7 @@ if (isset($_GET['report_id'])) {
         <div class="sec-hd">
             <span class="sec-ico si-am"><i class="fas fa-images"></i></span>
             <span class="sec-title">Step 6 — Sample Photos</span>
-            <span style="margin-left:auto;font-size:.75rem;color:var(--t4);">Optional · max 50 KB each</span>
+            <span style="margin-left:auto;font-size:.75rem;color:var(--t4);">Optional · max 200 KB each</span>
         </div>
         <div class="sec-body">
             <?php if ($upload_error): ?>
@@ -630,7 +630,7 @@ if (isset($_GET['report_id'])) {
                         <div class="dz-placeholder">
                             <i class="fas fa-cloud-arrow-up"></i>
                             <span>Drag & drop or click</span>
-                            <small>JPG · PNG · WEBP · max 50 KB</small>
+                            <small>JPG · PNG · WEBP · max 200 KB</small>
                         </div>
                         <img id="prev1" class="dz-preview" alt="Photo 1">
                         <button type="button" class="dz-clear"
@@ -655,7 +655,7 @@ if (isset($_GET['report_id'])) {
                         <div class="dz-placeholder">
                             <i class="fas fa-cloud-arrow-up"></i>
                             <span>Drag & drop or click</span>
-                            <small>JPG · PNG · WEBP · max 50 KB</small>
+                            <small>JPG · PNG · WEBP · max 200 KB</small>
                         </div>
                         <img id="prev2" class="dz-preview" alt="Photo 2">
                         <button type="button" class="dz-clear"
@@ -777,24 +777,47 @@ if (isset($_GET['report_id'])) {
 
             <div class="report-note">NB:- <?= htmlspecialchars($nbNote) ?></div>
 
-            <?php if (!empty($report_images)): ?>
-            <div class="report-photos">
-                <?php foreach ($report_images as $img_path): ?>
-                <img src="<?= htmlspecialchars($img_path) ?>" alt="Sample photo">
-                <?php endforeach; ?>
-            </div>
-            <?php endif; ?>
+            <!-- Bottom 2-col: photos (8/12) | gold/joint + signature (4/12) -->
+            <div style="display:table;width:100%;margin-top:6px;">
 
-            <?php if ($goldCode !== '' || $jointCode !== ''): ?>
-            <div class="report-codes">
-                <?php
-                $parts = [];
-                if ($goldCode  !== '') $parts[] = 'Gold: '  . htmlspecialchars($goldCode);
-                if ($jointCode !== '') $parts[] = 'Joint: ' . htmlspecialchars($jointCode);
-                echo implode('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;', $parts);
-                ?>
-            </div>
-            <?php endif; ?>
+                <!-- LEFT: sample photos -->
+                <div style="display:table-cell;width:66.66%;vertical-align:bottom;padding-right:8px;">
+                    <?php if (!empty($report_images)): ?>
+                    <div class="report-photos" style="margin-top:0;">
+                        <?php foreach ($report_images as $img_path): ?>
+                        <img src="<?= htmlspecialchars($img_path) ?>" alt="Sample photo">
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- RIGHT: gold/joint top + authorized signature bottom -->
+                <div style="display:table-cell;width:33.33%;vertical-align:top;padding-left:8px;">
+                <div style="display:flex;flex-direction:column;justify-content:space-between;height:100%;min-height:80px;">
+
+                    <!-- TOP: gold & joint -->
+                    <div style="text-align:right;">
+                        <?php if ($goldCode !== '' || $jointCode !== ''): ?>
+                        <div style="display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap;">
+                            <?php if ($goldCode !== ''): ?>
+                            <span style="font-size:11px;font-weight:700;color:#000;white-space:nowrap;">Gold : <?= htmlspecialchars($goldCode) ?></span>
+                            <?php endif; ?>
+                            <?php if ($jointCode !== ''): ?>
+                            <span style="font-size:11px;font-weight:700;color:#000;white-space:nowrap;">Joint : <?= htmlspecialchars($jointCode) ?></span>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <!-- BOTTOM: authorized signature always shown, centered -->
+                    <div style="border-top:1px solid #000;padding-top:4px;text-align:center;margin-top:28px;">
+                        <span style="font-size:10px;font-weight:700;color:#000;letter-spacing:.03em;">Authorized Signature</span>
+                    </div>
+
+                </div>
+                </div>
+
+            </div><!-- /bottom 2-col -->
 
         </div><!-- /tunch-container -->
     </div><!-- /tunch-preview -->
@@ -925,7 +948,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Drag & Drop Photo Zones ───────────────────────────────────────────────
-const MAX_PHOTO_SIZE = 50 * 1024; // 50 KB
+const MAX_PHOTO_SIZE = 200 * 1024; // 200 KB
 const ALLOWED_TYPES  = ['image/jpeg','image/jpg','image/png','image/webp'];
 
 function dzValidate(file) {
@@ -934,7 +957,7 @@ function dzValidate(file) {
         return false;
     }
     if (file.size > MAX_PHOTO_SIZE) {
-        alert('Photo exceeds 50 KB. Please choose a smaller file.');
+        alert('Photo exceeds 200 KB. Please choose a smaller file.');
         return false;
     }
     return true;

@@ -59,7 +59,7 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
 
     // ── Validate image ─────────────────────────────────────────────────────
     $allowed_types = ['image/jpeg','image/jpg','image/png','image/webp'];
-    $max_size      = 50 * 1024; // 50 KB
+    $max_size      = 200 * 1024; // 200 KB
     $photo_info    = null;
 
     if (isset($_FILES['photo']) && $_FILES['photo']['error'] !== UPLOAD_ERR_NO_FILE) {
@@ -67,7 +67,7 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $upload_error = "Photo upload error (code {$file['error']}).";
         } elseif ($file['size'] > $max_size) {
-            $upload_error = "Photo exceeds 50 KB limit.";
+            $upload_error = "Photo exceeds 200 KB limit.";
         } else {
             $finfo = new finfo(FILEINFO_MIME_TYPE);
             $mime  = $finfo->file($file['tmp_name']);
@@ -459,7 +459,7 @@ if (isset($_GET['report_id'])) {
                     <?php endif; ?>
                     <div class="dz-wrap" style="max-width:320px;">
                         <label class="lbl">Sample Photo
-                            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · max 50 KB</span>
+                            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · max 200 KB</span>
                         </label>
                         <div class="drop-zone" id="dz_photo"
                              onclick="document.getElementById('photo').click()"
@@ -470,7 +470,7 @@ if (isset($_GET['report_id'])) {
                             <div class="dz-placeholder">
                                 <i class="fas fa-cloud-arrow-up"></i>
                                 <span>Drag & drop or click</span>
-                                <small>JPG · PNG · WEBP · max 50 KB</small>
+                                <small>JPG · PNG · WEBP · max 200 KB</small>
                             </div>
                             <img id="photo_prev" class="dz-preview" alt="Photo preview">
                             <button type="button" class="dz-clear"
@@ -573,23 +573,27 @@ if (isset($_GET['report_id'])) {
                 </div>
             </div>
 
-            <?php if (!empty($report_image)): ?>
-            <div style="display:flex;gap:0;margin:6px 8px 4px;align-items:stretch;min-height:90px;">
-                <div style="flex:0 0 58.333%;max-width:58.333%;display:flex;align-items:flex-end;padding-right:8px;">
+            <!-- Bottom 2-col: photo (58%) | signature (42%) — always shown -->
+            <div style="display:table;width:100%;margin:6px 0 4px;">
+
+                <!-- LEFT: sample photo -->
+                <div style="display:table-cell;width:58.333%;vertical-align:bottom;padding:0 8px;">
+                    <?php if (!empty($report_image)): ?>
                     <img src="<?= htmlspecialchars($report_image) ?>" alt="Sample photo"
-                         style="width:160px;height:105px;object-fit:cover;border-radius:4px;border:1px solid #ddd;">
+                         style="width:160px;height:105px;object-fit:cover;border-radius:4px;border:1px solid #ddd;display:block;">
+                    <?php endif; ?>
                 </div>
-                <div style="flex:0 0 41.667%;max-width:41.667%;display:flex;flex-direction:column;justify-content:flex-end;">
-                    <div style="text-align:center;font-size:11px;font-weight:bold;color:#000;padding-bottom:2px;">
-                        Authorized Signature
+
+                <!-- RIGHT: authorized signature always shown, centered at bottom -->
+                <div style="display:table-cell;width:41.667%;vertical-align:bottom;padding:0 8px 0 0;">
+                    <div style="display:flex;flex-direction:column;justify-content:flex-end;min-height:80px;">
+                        <div style="border-top:1px solid #000;padding-top:4px;text-align:center;margin-top:28px;">
+                            <span style="font-size:10px;font-weight:700;color:#000;letter-spacing:.03em;">Authorized Signature</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <?php else: ?>
-            <div style="text-align:center;font-size:11px;font-weight:bold;color:#000;margin:6px 8px 4px;padding-bottom:2px;">
-                Authorized Signature
-            </div>
-            <?php endif; ?>
+
+            </div><!-- /bottom 2-col -->
 
         </div><!-- /reportPreview -->
     </div><!-- /hallmark-preview -->
@@ -678,7 +682,7 @@ function selectBillItem(i) {
 }
 
 // ── Drag & Drop Photo Zone ─────────────────────────────────────────────────
-const MAX_PHOTO_SIZE = 50 * 1024; // 50 KB
+const MAX_PHOTO_SIZE = 200 * 1024; // 200 KB
 const ALLOWED_TYPES  = ['image/jpeg','image/jpg','image/png','image/webp'];
 
 function dzValidate(file) {
@@ -687,7 +691,7 @@ function dzValidate(file) {
         return false;
     }
     if (file.size > MAX_PHOTO_SIZE) {
-        alert('Photo exceeds 50 KB. Please choose a smaller file.');
+        alert('Photo exceeds 200 KB. Please choose a smaller file.');
         return false;
     }
     return true;
