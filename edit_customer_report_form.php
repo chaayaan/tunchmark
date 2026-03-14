@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Image upload ──────────────────────────────────────────────────────
     $allowed_types = ['image/jpeg','image/jpg','image/png','image/webp'];
-    $max_size      = 200 * 1024; // 200 KB
+    $max_size      = 50 * 1024; // 50 KB
     $photo_paths   = [];
 
     // Helper: delete existing image file + DB row for a given slot
@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_FILES['photo']) && $_FILES['photo']['error'] !== UPLOAD_ERR_NO_FILE) {
             $file = $_FILES['photo'];
             if ($file['error'] !== UPLOAD_ERR_OK)       { $upload_error = "Upload error."; }
-            elseif ($file['size'] > $max_size)           { $upload_error = "Photo exceeds 200 KB limit."; }
+            elseif ($file['size'] > $max_size)           { $upload_error = "Photo exceeds 50 KB limit."; }
             else {
                 $finfo = new finfo(FILEINFO_MIME_TYPE);
                 $mime  = $finfo->file($file['tmp_name']);
@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!isset($_FILES[$key]) || $_FILES[$key]['error'] === UPLOAD_ERR_NO_FILE) continue;
             $file = $_FILES[$key];
             if ($file['error'] !== UPLOAD_ERR_OK)       { $upload_error = "Upload error on photo $n."; break; }
-            if ($file['size'] > $max_size)              { $upload_error = "Photo $n exceeds 200 KB limit."; break; }
+            if ($file['size'] > $max_size)              { $upload_error = "Photo $n exceeds 50 KB limit."; break; }
             $finfo = new finfo(FILEINFO_MIME_TYPE);
             $mime  = $finfo->file($file['tmp_name']);
             if (!in_array($mime, $allowed_types))       { $upload_error = "Photo $n: only JPG/PNG/WEBP allowed."; break; }
@@ -307,31 +307,41 @@ require_once 'navbar.php';
         .hallmark-input{width:100%;height:56px;padding:0 14px;border:2px solid var(--amber-b);border-radius:var(--rs);font-family:'DM Mono',monospace;font-size:1.5rem;font-weight:800;color:var(--t1);letter-spacing:.06em;outline:none;transition:border-color .15s,box-shadow .15s;text-align:center;background:var(--amber-bg);}
         .hallmark-input:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(217,119,6,.12);}
 
-        /* ── Photo slot ── */
+        /* ── Photo slot (existing image parts — unchanged) ── */
         .photo-slot{display:flex;flex-direction:column;gap:8px;}
-        /* Existing image preview box */
         .existing-img-wrap{position:relative;display:inline-block;border-radius:var(--rs);overflow:hidden;border:1px solid var(--border);}
         .existing-img-wrap img{display:block;width:100%;height:120px;object-fit:cover;}
-        /* Strikethrough overlay when marked for removal */
-        .existing-img-wrap.marked::after{
-            content:'';position:absolute;inset:0;
-            background:rgba(220,38,38,.45);
-        }
+        .existing-img-wrap.marked::after{content:'';position:absolute;inset:0;background:rgba(220,38,38,.45);}
         .existing-img-wrap.marked img{opacity:.4;}
-        /* Remove toggle button */
-        .img-remove-btn{
-            display:inline-flex;align-items:center;gap:5px;
-            height:28px;padding:0 10px;border:none;border-radius:var(--rs);
-            font-family:inherit;font-size:.75rem;font-weight:600;cursor:pointer;
-            transition:all .15s;
-        }
+        .img-remove-btn{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border:none;border-radius:var(--rs);font-family:inherit;font-size:.75rem;font-weight:600;cursor:pointer;transition:all .15s;}
         .img-remove-btn.remove{background:var(--red-bg);color:var(--red);border:1px solid var(--red-b);}
         .img-remove-btn.remove:hover{background:var(--red);color:#fff;}
         .img-remove-btn.undo{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b);}
         .img-remove-btn.undo:hover{background:var(--green);color:#fff;}
-        /* New file input */
-        .new-file-wrap{display:flex;flex-direction:column;gap:6px;}
-        .photo-preview{width:100%;height:110px;object-fit:cover;border-radius:var(--rs);border:1px solid var(--border);display:none;margin-top:4px;}
+
+        /* ── Drag & Drop zones (NEW — replaces .new-file-wrap + .photo-preview) ── */
+        .dz-wrap{display:flex;flex-direction:column;gap:6px;}
+        .drop-zone{
+            position:relative;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:6px;
+            height:130px;border:2px dashed var(--border);border-radius:var(--rs);
+            cursor:pointer;background:var(--s2);transition:border-color .15s,background .15s;
+            overflow:hidden;
+        }
+        .drop-zone:hover,.drop-zone.dz-over{border-color:var(--violet);background:var(--violet-bg);}
+        .drop-zone.dz-cyan:hover,.drop-zone.dz-cyan.dz-over{border-color:var(--cyan);background:var(--cyan-bg);}
+        .drop-zone.dz-over{border-style:solid;}
+        .drop-zone.has-file{border-style:solid;border-color:var(--green-b);background:var(--green-bg);}
+        .drop-zone.has-file .dz-placeholder{display:none;}
+        .dz-placeholder{display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;}
+        .dz-placeholder i{font-size:1.5rem;color:var(--t4);}
+        .dz-placeholder span{font-size:.75rem;color:var(--t3);font-weight:600;}
+        .dz-placeholder small{font-size:.68rem;color:var(--t4);}
+        .dz-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;border-radius:calc(var(--rs) - 2px);}
+        .drop-zone.has-file .dz-preview{display:block;}
+        .dz-clear{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(220,38,38,.85);border:none;color:#fff;font-size:9px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:10;}
+        .drop-zone.has-file .dz-clear{display:flex;}
+        .dz-input{display:none;}
 
         @media(max-width:991.98px){
             .page-shell{margin-left:0;}
@@ -480,15 +490,13 @@ require_once 'navbar.php';
             <div>
                 <label class="lbl">Sample Photo
                     <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">
-                        Optional · max 200 KB · JPG/PNG/WEBP
+                        Optional · max 50 KB · JPG/PNG/WEBP
                     </span>
                 </label>
-                <?php
-                $hImg = $existingImages['hallmark'][1] ?? null;
-                ?>
+                <?php $hImg = $existingImages['hallmark'][1] ?? null; ?>
                 <div class="photo-slot" style="max-width:320px;">
                     <?php if ($hImg): ?>
-                    <!-- Existing image -->
+                    <!-- Existing image — unchanged -->
                     <div class="existing-img-wrap" id="hallmark_img_wrap">
                         <img src="<?= htmlspecialchars($hImg) ?>" alt="Existing photo">
                     </div>
@@ -502,12 +510,29 @@ require_once 'navbar.php';
                         <span style="font-size:.75rem;color:var(--t4);">or upload a new one below</span>
                     </div>
                     <?php endif; ?>
-                    <div class="new-file-wrap">
-                        <input type="file" name="photo" id="photo" class="fc"
+                    <!-- CHANGED: .new-file-wrap plain input → drag & drop zone -->
+                    <div class="dz-wrap">
+                        <div class="drop-zone dz-cyan" id="dz_photo_h"
+                             onclick="document.getElementById('photo').click()"
+                             ondragenter="dzEnter(event,this)"
+                             ondragover="dzOver(event)"
+                             ondragleave="dzLeave(event,this)"
+                             ondrop="dzDrop(event,this,'photo','photo_preview_h','hallmark')">
+                            <div class="dz-placeholder">
+                                <i class="fas fa-cloud-arrow-up"></i>
+                                <span>Drag &amp; drop or click</span>
+                                <small>JPG · PNG · WEBP · max 50 KB</small>
+                            </div>
+                            <img id="photo_preview_h" class="dz-preview" alt="New photo preview">
+                            <button type="button" class="dz-clear"
+                                    onclick="dzClear(event,'dz_photo_h','photo','photo_preview_h')"
+                                    title="Remove">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <input type="file" name="photo" id="photo" class="dz-input"
                                accept=".jpg,.jpeg,.png,.webp"
-                               style="height:auto;padding:6px 10px;cursor:pointer;"
-                               onchange="previewAndAutoMark(this,'photo_preview_h','hallmark')">
-                        <img id="photo_preview_h" class="photo-preview" alt="New photo preview">
+                               onchange="dzFromInput(this,'dz_photo_h','photo_preview_h','hallmark')">
                     </div>
                 </div>
             </div>
@@ -727,7 +752,7 @@ require_once 'navbar.php';
         <div class="sec-hd">
             <span class="sec-ico si-am"><i class="fas fa-images"></i></span>
             <span class="sec-title">Step 5 — Sample Photos</span>
-            <span style="margin-left:auto;font-size:.75rem;color:var(--t4);">Optional · max 200 KB each</span>
+            <span style="margin-left:auto;font-size:.75rem;color:var(--t4);">Optional · max 50 KB each</span>
         </div>
         <div class="sec-body">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
@@ -743,7 +768,7 @@ require_once 'navbar.php';
                     </label>
 
                     <?php if ($tImg): ?>
-                    <!-- Existing image -->
+                    <!-- Existing image — unchanged -->
                     <div class="existing-img-wrap" id="tunch_img_wrap_<?= $n ?>">
                         <img src="<?= htmlspecialchars($tImg) ?>" alt="Photo <?= $n ?>">
                     </div>
@@ -758,12 +783,29 @@ require_once 'navbar.php';
                     </div>
                     <?php endif; ?>
 
-                    <div class="new-file-wrap">
-                        <input type="file" name="photo_<?= $n ?>" id="photo_<?= $n ?>" class="fc"
+                    <!-- CHANGED: .new-file-wrap plain input → drag & drop zone -->
+                    <div class="dz-wrap">
+                        <div class="drop-zone" id="dz_photo_<?= $n ?>"
+                             onclick="document.getElementById('photo_<?= $n ?>').click()"
+                             ondragenter="dzEnter(event,this)"
+                             ondragover="dzOver(event)"
+                             ondragleave="dzLeave(event,this)"
+                             ondrop="dzDrop(event,this,'photo_<?= $n ?>','prev<?= $n ?>','tunch_<?= $n ?>')">
+                            <div class="dz-placeholder">
+                                <i class="fas fa-cloud-arrow-up"></i>
+                                <span>Drag &amp; drop or click</span>
+                                <small>JPG · PNG · WEBP · max 50 KB</small>
+                            </div>
+                            <img id="prev<?= $n ?>" class="dz-preview" alt="Photo <?= $n ?> preview">
+                            <button type="button" class="dz-clear"
+                                    onclick="dzClear(event,'dz_photo_<?= $n ?>','photo_<?= $n ?>','prev<?= $n ?>')"
+                                    title="Remove">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <input type="file" name="photo_<?= $n ?>" id="photo_<?= $n ?>" class="dz-input"
                                accept=".jpg,.jpeg,.png,.webp"
-                               style="height:auto;padding:6px 10px;cursor:pointer;"
-                               onchange="previewAndAutoMark(this,'prev<?= $n ?>','tunch_<?= $n ?>')">
-                        <img id="prev<?= $n ?>" class="photo-preview" alt="Photo <?= $n ?> preview">
+                               onchange="dzFromInput(this,'dz_photo_<?= $n ?>','prev<?= $n ?>','tunch_<?= $n ?>')">
                     </div>
                 </div>
                 <?php endfor; ?>
@@ -830,29 +872,9 @@ function validateKarat(inp) {
     inp.style.borderColor = bad ? 'var(--red)' : '';
 }
 
-// ── Photo: preview + auto-mark existing for removal ───────────────────────
-function previewAndAutoMark(input, previewId, slotKey) {
-    const preview = document.getElementById(previewId);
-    const file    = input.files[0];
-    if (!file) { preview.style.display = 'none'; return; }
-    if (file.size > 200 * 1024) {
-        alert('Photo exceeds 200 KB limit. Please choose a smaller image.');
-        input.value = '';
-        preview.style.display = 'none';
-        return;
-    }
-    // Show new preview
-    preview.src = URL.createObjectURL(file);
-    preview.style.display = 'block';
-    // Automatically mark existing image for removal
-    markForRemoval(slotKey, true);
-}
-
-// ── Toggle remove existing image ──────────────────────────────────────────
-// slotKey: 'hallmark' | 'tunch_1' | 'tunch_2'
+// ── Toggle remove existing image (unchanged) ──────────────────────────────
 function toggleRemove(slotKey) {
-    const currentlyMarked = isMarked(slotKey);
-    markForRemoval(slotKey, !currentlyMarked);
+    markForRemoval(slotKey, !isMarked(slotKey));
 }
 
 function isMarked(slotKey) {
@@ -896,6 +918,58 @@ function getRemoveBtn(slotKey) {
     if (slotKey === 'tunch_1')   return document.getElementById('remove_btn_1');
     if (slotKey === 'tunch_2')   return document.getElementById('remove_btn_2');
     return null;
+}
+
+// ── Drag & Drop Zone Functions (NEW) ─────────────────────────────────────
+const MAX_PHOTO_SIZE = 50 * 1024;
+const ALLOWED_TYPES  = ['image/jpeg','image/jpg','image/png','image/webp'];
+
+function dzValidate(file) {
+    if (!ALLOWED_TYPES.includes(file.type)) {
+        alert('Only JPG, PNG, or WEBP images are allowed.');
+        return false;
+    }
+    if (file.size > MAX_PHOTO_SIZE) {
+        alert('Photo exceeds 50 KB. Please choose a smaller file.');
+        return false;
+    }
+    return true;
+}
+function dzApply(file, zoneId, previewId, slotKey) {
+    if (!dzValidate(file)) return;
+    document.getElementById(previewId).src = URL.createObjectURL(file);
+    document.getElementById(zoneId).classList.add('has-file');
+    // Auto-mark the existing image for removal (same as original previewAndAutoMark)
+    if (slotKey) markForRemoval(slotKey, true);
+}
+function dzFromInput(input, zoneId, previewId, slotKey) {
+    if (input.files && input.files[0]) dzApply(input.files[0], zoneId, previewId, slotKey);
+}
+function dzEnter(e, zone) {
+    e.preventDefault();
+    zone.classList.add('dz-over');
+}
+function dzOver(e) {
+    e.preventDefault();
+}
+function dzLeave(e, zone) {
+    if (!zone.contains(e.relatedTarget)) zone.classList.remove('dz-over');
+}
+function dzDrop(e, zone, inputId, previewId, slotKey) {
+    e.preventDefault();
+    zone.classList.remove('dz-over');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    document.getElementById(inputId).files = dt.files;
+    dzApply(file, zone.id, previewId, slotKey);
+}
+function dzClear(e, zoneId, inputId, previewId) {
+    e.stopPropagation();
+    document.getElementById(inputId).value = '';
+    document.getElementById(previewId).src  = '';
+    document.getElementById(zoneId).classList.remove('has-file');
 }
 </script>
 

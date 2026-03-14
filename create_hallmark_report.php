@@ -59,7 +59,7 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
 
     // ── Validate image ─────────────────────────────────────────────────────
     $allowed_types = ['image/jpeg','image/jpg','image/png','image/webp'];
-    $max_size      = 200 * 1024; // 200 KB
+    $max_size      = 50 * 1024; // 50 KB
     $photo_info    = null;
 
     if (isset($_FILES['photo']) && $_FILES['photo']['error'] !== UPLOAD_ERR_NO_FILE) {
@@ -67,7 +67,7 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $upload_error = "Photo upload error (code {$file['error']}).";
         } elseif ($file['size'] > $max_size) {
-            $upload_error = "Photo exceeds 200 KB limit.";
+            $upload_error = "Photo exceeds 50 KB limit.";
         } else {
             $finfo = new finfo(FILEINFO_MIME_TYPE);
             $mime  = $finfo->file($file['tmp_name']);
@@ -459,7 +459,7 @@ if (isset($_GET['report_id'])) {
                     <?php endif; ?>
                     <div class="dz-wrap" style="max-width:320px;">
                         <label class="lbl">Sample Photo
-                            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · max 200 KB</span>
+                            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · max 50 KB</span>
                         </label>
                         <div class="drop-zone" id="dz_photo"
                              onclick="document.getElementById('photo').click()"
@@ -470,7 +470,7 @@ if (isset($_GET['report_id'])) {
                             <div class="dz-placeholder">
                                 <i class="fas fa-cloud-arrow-up"></i>
                                 <span>Drag & drop or click</span>
-                                <small>JPG · PNG · WEBP · max 200 KB</small>
+                                <small>JPG · PNG · WEBP · max 50 KB</small>
                             </div>
                             <img id="photo_prev" class="dz-preview" alt="Photo preview">
                             <button type="button" class="dz-clear"
@@ -678,7 +678,7 @@ function selectBillItem(i) {
 }
 
 // ── Drag & Drop Photo Zone ─────────────────────────────────────────────────
-const MAX_PHOTO_SIZE = 200 * 1024; // 200 KB
+const MAX_PHOTO_SIZE = 50 * 1024; // 50 KB
 const ALLOWED_TYPES  = ['image/jpeg','image/jpg','image/png','image/webp'];
 
 function dzValidate(file) {
@@ -687,7 +687,7 @@ function dzValidate(file) {
         return false;
     }
     if (file.size > MAX_PHOTO_SIZE) {
-        alert('Photo exceeds 200 KB. Please choose a smaller file.');
+        alert('Photo exceeds 50 KB. Please choose a smaller file.');
         return false;
     }
     return true;

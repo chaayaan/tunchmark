@@ -607,7 +607,7 @@ if (isset($_GET['report_id'])) {
         <div class="sec-hd">
             <span class="sec-ico si-am"><i class="fas fa-images"></i></span>
             <span class="sec-title">Step 6 — Sample Photos</span>
-            <span style="margin-left:auto;font-size:.75rem;color:var(--t4);">Optional · max 200 KB each</span>
+            <span style="margin-left:auto;font-size:.75rem;color:var(--t4);">Optional · max 50 KB each</span>
         </div>
         <div class="sec-body">
             <?php if ($upload_error): ?>
@@ -630,7 +630,7 @@ if (isset($_GET['report_id'])) {
                         <div class="dz-placeholder">
                             <i class="fas fa-cloud-arrow-up"></i>
                             <span>Drag & drop or click</span>
-                            <small>JPG · PNG · WEBP · max 200 KB</small>
+                            <small>JPG · PNG · WEBP · max 50 KB</small>
                         </div>
                         <img id="prev1" class="dz-preview" alt="Photo 1">
                         <button type="button" class="dz-clear"
@@ -655,7 +655,7 @@ if (isset($_GET['report_id'])) {
                         <div class="dz-placeholder">
                             <i class="fas fa-cloud-arrow-up"></i>
                             <span>Drag & drop or click</span>
-                            <small>JPG · PNG · WEBP · max 200 KB</small>
+                            <small>JPG · PNG · WEBP · max 50 KB</small>
                         </div>
                         <img id="prev2" class="dz-preview" alt="Photo 2">
                         <button type="button" class="dz-clear"
@@ -925,7 +925,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ── Drag & Drop Photo Zones ───────────────────────────────────────────────
-const MAX_PHOTO_SIZE = 200 * 1024; // 200 KB
+const MAX_PHOTO_SIZE = 50 * 1024; // 50 KB
 const ALLOWED_TYPES  = ['image/jpeg','image/jpg','image/png','image/webp'];
 
 function dzValidate(file) {
@@ -934,7 +934,7 @@ function dzValidate(file) {
         return false;
     }
     if (file.size > MAX_PHOTO_SIZE) {
-        alert('Photo exceeds 200 KB. Please choose a smaller file.');
+        alert('Photo exceeds 50 KB. Please choose a smaller file.');
         return false;
     }
     return true;
