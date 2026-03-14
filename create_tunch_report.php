@@ -69,8 +69,8 @@ if (isset($_POST['submit_report'])) {
 
     // ── Validate uploaded images ──────────────────────────────────────────
     $allowed_types = ['image/jpeg','image/jpg','image/png','image/webp'];
-    $max_size      = 200 * 1024; // 200 KB
-    $photo_paths   = [];
+    $max_size      = 2 * 1024 * 1024; // 2 MB
+    $photo_paths   = []; // will store final relative paths for report_images
 
     for ($n = 1; $n <= 2; $n++) {
         $key = 'photo_' . $n;
@@ -82,9 +82,10 @@ if (isset($_POST['submit_report'])) {
             break;
         }
         if ($file['size'] > $max_size) {
-            $upload_error = "Photo $n exceeds 200 KB limit.";
+            $upload_error = "Photo $n exceeds 2 MB limit.";
             break;
         }
+        // Check real MIME type via finfo (not just extension)
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mime  = $finfo->file($file['tmp_name']);
         if (!in_array($mime, $allowed_types, true)) {
@@ -95,6 +96,7 @@ if (isset($_POST['submit_report'])) {
     }
 
     if ($upload_error) {
+        // Re-populate order data so the form is shown again with the error
         $stmt = mysqli_prepare($conn, "SELECT order_id, customer_name FROM orders WHERE order_id = ?");
         mysqli_stmt_bind_param($stmt, "i", $order_id);
         mysqli_stmt_execute($stmt);
@@ -139,8 +141,11 @@ if (isset($_POST['submit_report'])) {
         if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
 
         foreach ($photo_paths as $n => $info) {
+            // Determine extension from real MIME
             $ext_map = ['image/jpeg'=>'jpg','image/jpg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
             $ext     = $ext_map[$info['mime']] ?? 'jpg';
+
+            // Rename: tunch_{report_id}_{photo_number}.ext
             $filename  = "tunch_{$report_id}_{$n}.{$ext}";
             $dest_path = $upload_dir . $filename;
             $rel_path  = "uploads/tunch_reports/{$filename}";
@@ -171,7 +176,6 @@ if (isset($_GET['report_id'])) {
     if ($report_data) $report_created = true;
 }
 
-include 'navbar.php';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -200,12 +204,16 @@ include 'navbar.php';
         }
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{font-family:'DM Sans',sans-serif;font-size:14px;background:var(--bg);color:var(--t1);-webkit-font-smoothing:antialiased;min-height:100vh;}
+
+        /* Shell */
         .page-shell{margin-left:200px;min-height:100vh;display:flex;flex-direction:column;}
         .top-bar{position:sticky;top:0;z-index:200;height:54px;background:var(--surface);border-bottom:1px solid var(--border);box-shadow:var(--sh);display:flex;align-items:center;padding:0 22px;gap:12px;flex-shrink:0;}
         .tb-ico{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;background:var(--violet-bg);color:var(--violet);flex-shrink:0;}
         .tb-title{font-size:1.0625rem;font-weight:700;color:var(--t1);}
         .tb-sub{font-size:.78rem;color:var(--t4);}
         .tb-right{margin-left:auto;display:flex;gap:7px;align-items:center;}
+
+        /* Buttons */
         .btn-pos{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border:none;border-radius:var(--rs);font-family:inherit;font-size:.8125rem;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none;white-space:nowrap;}
         .btn-ghost{background:var(--surface);color:var(--t2);border:1.5px solid var(--border);}
         .btn-ghost:hover{background:var(--s2);border-color:#9ca3af;color:var(--t1);}
@@ -213,14 +221,20 @@ include 'navbar.php';
         .btn-green{background:var(--green);color:#fff;} .btn-green:hover{background:#047857;}
         .btn-amber{background:var(--amber);color:#fff;} .btn-amber:hover{background:#b45309;}
         .btn-violet{background:var(--violet);color:#fff;} .btn-violet:hover{background:#6d28d9;}
+
+        /* Split */
         .split-body{padding:18px 16px 60px;}
         .split-left{display:flex;flex-direction:column;gap:14px;}
         .split-right{display:flex;flex-direction:column;gap:14px;}
         .col-divider{border-left:2px solid var(--border);}
+
+        /* Placeholder */
         .rp-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:300px;color:var(--t4);text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);}
         .rp-placeholder-icon{width:50px;height:50px;border-radius:12px;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--t4);}
         .rp-placeholder h3{font-size:.875rem;font-weight:700;color:var(--t3);margin:0;}
         .rp-placeholder p{font-size:.8rem;color:var(--t4);margin:0;max-width:190px;line-height:1.5;}
+
+        /* Section cards */
         .sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;}
         .sec-hd{display:flex;align-items:center;gap:9px;padding:11px 18px;background:var(--s2);border-bottom:1px solid var(--bsoft);}
         .sec-ico{width:26px;height:26px;border-radius:var(--rs);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
@@ -231,10 +245,14 @@ include 'navbar.php';
         .sec-title{font-size:.875rem;font-weight:700;color:var(--t1);}
         .sec-body{padding:18px;}
         .sec-title-note{margin-left:auto;font-size:.75rem;color:var(--amber);font-weight:600;}
+
+        /* Alerts */
         .pos-alert{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:var(--rs);font-size:.875rem;font-weight:500;}
         .pos-alert.danger{background:var(--red-bg);border:1px solid var(--red-b);border-left:3px solid var(--red);color:#991b1b;}
         .pos-alert.info{background:var(--blue-bg);border:1px solid var(--blue-b);border-left:3px solid var(--blue);color:#1e40af;}
         .pos-alert.amber{background:var(--amber-bg);border:1px solid var(--amber-b);border-left:3px solid var(--amber);color:#92400e;}
+
+        /* Labels & inputs */
         .lbl{display:block;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:5px;}
         .lbl .req{color:var(--red);margin-left:2px;}
         .fc{width:100%;height:36px;padding:0 10px;border:1.5px solid var(--border);border-radius:var(--rs);font-family:inherit;font-size:.875rem;color:var(--t2);background:var(--surface);outline:none;transition:border-color .15s,box-shadow .15s;}
@@ -242,8 +260,11 @@ include 'navbar.php';
         .fc.editable{background:var(--amber-bg);border-color:var(--amber-b);}
         .fc.editable:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(217,119,6,.1);}
         textarea.fc{height:auto;padding:8px 10px;resize:vertical;}
+
         .fetch-row{display:flex;gap:10px;align-items:flex-end;}
         .form-actions{display:flex;justify-content:flex-end;padding:14px 18px;background:var(--s2);border-top:1px solid var(--border);}
+
+        /* Bill item cards */
         .item-cards{display:flex;flex-direction:column;gap:8px;}
         .item-card{display:flex;align-items:center;gap:12px;padding:10px 14px;border:2px solid var(--border);border-radius:var(--rs);cursor:pointer;transition:all .2s;}
         .item-card:hover{border-color:var(--blue-b);background:var(--blue-bg);}
@@ -252,10 +273,55 @@ include 'navbar.php';
         .item-card-info{flex:1;display:flex;flex-wrap:wrap;gap:6px 16px;}
         .ic-tag{display:inline-flex;align-items:center;gap:4px;font-size:.8rem;color:var(--t2);}
         .ic-tag strong{color:var(--t1);font-weight:700;}
+
+        /* XRF */
         .xrf-textarea{font-family:'DM Mono',monospace;font-size:12px;line-height:1.6;}
         .parse-btn{margin-top:8px;}
-        .photo-upload-box{display:flex;flex-direction:column;gap:6px;}
-        .photo-preview{width:100%;height:110px;object-fit:cover;border-radius:var(--rs);border:1px solid var(--border);display:none;margin-top:6px;}
+
+        /* Element group */
+        .element-group-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--bsoft);}
+
+        /* ── Drag & drop photo zones ── */
+        .dz-wrap{display:flex;flex-direction:column;gap:6px;}
+        .drop-zone{
+            position:relative;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:6px;
+            height:130px;border:2px dashed var(--border);border-radius:var(--rs);
+            cursor:pointer;background:var(--s2);transition:border-color .15s,background .15s;
+            overflow:hidden;
+        }
+        .drop-zone:hover,.drop-zone.dz-over{
+            border-color:var(--violet);background:var(--violet-bg);
+        }
+        .drop-zone.dz-over{ border-style:solid; }
+        .drop-zone.has-file{
+            border-style:solid;border-color:var(--green-b);background:var(--green-bg);
+        }
+        .drop-zone.has-file .dz-placeholder{ display:none; }
+        .dz-placeholder{display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;}
+        .dz-placeholder i{font-size:1.5rem;color:var(--t4);}
+        .dz-placeholder span{font-size:.75rem;color:var(--t3);font-weight:600;}
+        .dz-placeholder small{font-size:.68rem;color:var(--t4);}
+        /* preview image fills the zone */
+        .dz-preview{
+            position:absolute;inset:0;width:100%;height:100%;
+            object-fit:cover;display:none;border-radius:calc(var(--rs) - 2px);
+        }
+        .drop-zone.has-file .dz-preview{ display:block; }
+        /* clear button */
+        .dz-clear{
+            position:absolute;top:5px;right:5px;
+            width:22px;height:22px;border-radius:50%;
+            background:rgba(220,38,38,.85);border:none;
+            color:#fff;font-size:9px;cursor:pointer;
+            display:none;align-items:center;justify-content:center;
+            z-index:10;
+        }
+        .drop-zone.has-file .dz-clear{ display:flex; }
+        /* hidden real file input */
+        .dz-input{ display:none; }
+
+        /* Report */
         .report-wrap{padding:20px 22px 60px;display:flex;flex-direction:column;gap:14px;max-width:860px;}
         .tunch-preview{width:auto;max-width:700px;padding:0 30px;background:white;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;}
         .tunch-container{padding:0 20px;background:white;position:relative;}
@@ -284,11 +350,28 @@ include 'navbar.php';
         .report-photos img{width:140px;height:100px;object-fit:cover;border-radius:4px;border:1px solid #ddd;}
         .report-codes{font-size:11px;text-align:right;margin:4px 0 0;font-weight:bold;color:#000;}
         .report-actions{display:flex;align-items:center;justify-content:center;gap:10px;padding:16px 18px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);flex-wrap:wrap;}
+
         @media(max-width:991.98px){.page-shell{margin-left:0;}.top-bar{top:52px;}.col-divider{border-left:none;border-top:2px solid var(--border);padding-top:14px;margin-top:0;}}
-        @media print{.page-shell{margin-left:0;}.split-body{display:none!important;}}
+        @media print {
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            body { background: #fff !important; }
+            /* Hide navbar, top bar, form, buttons, alerts — everything except the report */
+            #app-navbar,
+            nav, aside, #navbar, .navbar, [class*="navbar"], [class*="sidebar"],
+            .top-bar,
+            .split-body,
+            .report-actions,
+            .pos-alert,
+            .report-wrap > *:not(.tunch-preview) { display: none !important; }
+            .page-shell { margin-left: 0 !important; }
+            .report-wrap { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+            .tunch-preview { max-width: 100% !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
+            .tunch-container { padding: 0 10px !important; }
+        }
     </style>
 </head>
 <body>
+<div id="app-navbar"><?php include 'navbar.php'; ?></div>
 <div class="page-shell">
 
 <header class="top-bar">
@@ -315,7 +398,7 @@ include 'navbar.php';
 <div class="split-body">
 <div class="row g-0">
 
-<!-- LEFT col: Steps 1–4 -->
+<!-- LEFT col: Steps 1–4 + photos -->
 <div class="col-12 col-lg-6 pe-lg-3">
 <div class="split-left">
 
@@ -374,7 +457,7 @@ include 'navbar.php';
         </div>
     </div>
 
-    <!-- MAIN FORM -->
+    <!-- MAIN FORM — enctype required for file upload -->
     <form method="POST" id="reportForm" enctype="multipart/form-data">
         <input type="hidden" name="order_id"     value="<?= htmlspecialchars($order_data['order_id']) ?>">
         <input type="hidden" name="bill_item_id" id="bill_item_id" value="<?= $bill_items[0]['bill_item_id'] ?>">
@@ -440,13 +523,11 @@ include 'navbar.php';
 </div><!-- /split-left -->
 </div><!-- /left col -->
 
-<!-- RIGHT col: Step 5 Testing Results + Step 6 Photos + Generate button -->
+<!-- RIGHT col: Step 5 — Testing Results -->
 <div class="col-12 col-lg-6 ps-lg-3 col-divider">
 <div class="split-right">
 
     <?php if ($order_data && !empty($bill_items)): ?>
-
-    <!-- Step 5 — Testing Results -->
     <div class="sec">
         <div class="sec-hd">
             <span class="sec-ico si-vi"><i class="fas fa-flask"></i></span>
@@ -466,7 +547,7 @@ include 'navbar.php';
                        style="font-family:'DM Mono',monospace;height:30px;padding:0 6px;width:80px;">
             </div>
 
-            <!-- Element grid -->
+            <!-- Element grid — 3 columns, 25 elements -->
             <table style="width:100%;border-collapse:collapse;">
             <?php
             $elemOrder = ['silver','copper','zinc','cadmium','iridium','rhodium','cobalt',
@@ -521,7 +602,7 @@ include 'navbar.php';
         </div>
     </div><!-- /Step 5 -->
 
-    <!-- Step 6 — Sample Photos + Generate button -->
+    <!-- Step 6 — Sample Photos + Generate -->
     <div class="sec">
         <div class="sec-hd">
             <span class="sec-ico si-am"><i class="fas fa-images"></i></span>
@@ -536,22 +617,57 @@ include 'navbar.php';
             </div>
             <?php endif; ?>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-                <div class="photo-upload-box">
-                    <label class="lbl">Photo 1</label>
-                    <input type="file" name="photo_1" id="photo_1" class="fc" form="reportForm"
-                           accept=".jpg,.jpeg,.png,.webp"
-                           style="height:auto;padding:6px 10px;cursor:pointer;"
-                           onchange="previewPhoto(this, 'prev1')">
-                    <img id="prev1" class="photo-preview" alt="Photo 1 preview">
+
+                <!-- Photo 1 -->
+                <div class="dz-wrap">
+                    <label class="lbl">Photo 1 <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">optional</span></label>
+                    <div class="drop-zone" id="dz1"
+                         onclick="document.getElementById('photo_1').click()"
+                         ondragenter="dzEnter(event,this)"
+                         ondragover="dzOver(event)"
+                         ondragleave="dzLeave(event,this)"
+                         ondrop="dzDrop(event,this,'photo_1','prev1')">
+                        <div class="dz-placeholder">
+                            <i class="fas fa-cloud-arrow-up"></i>
+                            <span>Drag & drop or click</span>
+                            <small>JPG · PNG · WEBP · max 200 KB</small>
+                        </div>
+                        <img id="prev1" class="dz-preview" alt="Photo 1">
+                        <button type="button" class="dz-clear"
+                                onclick="dzClear(event,'dz1','photo_1','prev1')" title="Remove">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <input type="file" id="photo_1" name="photo_1" class="dz-input"
+                           form="reportForm" accept=".jpg,.jpeg,.png,.webp"
+                           onchange="dzFromInput(this,'dz1','prev1')">
                 </div>
-                <div class="photo-upload-box">
-                    <label class="lbl">Photo 2</label>
-                    <input type="file" name="photo_2" id="photo_2" class="fc" form="reportForm"
-                           accept=".jpg,.jpeg,.png,.webp"
-                           style="height:auto;padding:6px 10px;cursor:pointer;"
-                           onchange="previewPhoto(this, 'prev2')">
-                    <img id="prev2" class="photo-preview" alt="Photo 2 preview">
+
+                <!-- Photo 2 -->
+                <div class="dz-wrap">
+                    <label class="lbl">Photo 2 <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">optional</span></label>
+                    <div class="drop-zone" id="dz2"
+                         onclick="document.getElementById('photo_2').click()"
+                         ondragenter="dzEnter(event,this)"
+                         ondragover="dzOver(event)"
+                         ondragleave="dzLeave(event,this)"
+                         ondrop="dzDrop(event,this,'photo_2','prev2')">
+                        <div class="dz-placeholder">
+                            <i class="fas fa-cloud-arrow-up"></i>
+                            <span>Drag & drop or click</span>
+                            <small>JPG · PNG · WEBP · max 200 KB</small>
+                        </div>
+                        <img id="prev2" class="dz-preview" alt="Photo 2">
+                        <button type="button" class="dz-clear"
+                                onclick="dzClear(event,'dz2','photo_2','prev2')" title="Remove">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <input type="file" id="photo_2" name="photo_2" class="dz-input"
+                           form="reportForm" accept=".jpg,.jpeg,.png,.webp"
+                           onchange="dzFromInput(this,'dz2','prev2')">
                 </div>
+
             </div>
         </div>
         <div class="form-actions">
@@ -598,6 +714,7 @@ include 'navbar.php';
     $jointCode = $report_data['joint'] !== null ? number_format((float)$report_data['joint'], 3) : '';
     $nbNote    = 'The report pertains to specific point and not responsible for other point or melting issues.';
 
+    // Load images
     $imgStmt = mysqli_prepare($conn,
         "SELECT img_path FROM report_images WHERE report_id=? AND img_type='tunch' ORDER BY img_number ASC LIMIT 2");
     mysqli_stmt_bind_param($imgStmt, 'i', $report_data['id']);
@@ -660,36 +777,24 @@ include 'navbar.php';
 
             <div class="report-note">NB:- <?= htmlspecialchars($nbNote) ?></div>
 
-            <!-- Bottom split: 7/12 images | 5/12 gold+joint+signature -->
-            <div style="display:flex;gap:0;margin-top:6px;align-items:stretch;min-height:90px;">
-
-                <!-- Left 7/12 — photos -->
-                <div style="flex:0 0 58.333%;max-width:58.333%;display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;padding-right:8px;">
-                    <?php if (!empty($report_images)): ?>
-                        <?php foreach ($report_images as $img_path): ?>
-                        <img src="<?= htmlspecialchars($img_path) ?>" alt="Sample photo"
-                             style="width:130px;height:95px;object-fit:cover;border-radius:4px;border:1px solid #ddd;">
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </div>
-
-                <!-- Right 5/12 — gold/joint top-right + authorized signature bottom-center -->
-                <div style="flex:0 0 41.667%;max-width:41.667%;display:flex;flex-direction:column;justify-content:space-between;">
-
-                    <!-- Gold & Joint in same row, top-right -->
-                    <div style="display:flex;justify-content:flex-end;gap:18px;font-size:11px;font-weight:bold;color:#000;">
-                        <?php if ($goldCode !== ''): ?><span>Gold : <?= htmlspecialchars($goldCode) ?></span><?php endif; ?>
-                        <?php if ($jointCode !== ''): ?><span>Joint : <?= htmlspecialchars($jointCode) ?></span><?php endif; ?>
-                    </div>
-
-                    <!-- Authorized Signature bottom-center of right column -->
-                    <div style="text-align:center;font-size:11px;font-weight:bold;color:#000;padding-bottom:2px;">
-                        Authorized Signature
-                    </div>
-
-                </div>
-
+            <?php if (!empty($report_images)): ?>
+            <div class="report-photos">
+                <?php foreach ($report_images as $img_path): ?>
+                <img src="<?= htmlspecialchars($img_path) ?>" alt="Sample photo">
+                <?php endforeach; ?>
             </div>
+            <?php endif; ?>
+
+            <?php if ($goldCode !== '' || $jointCode !== ''): ?>
+            <div class="report-codes">
+                <?php
+                $parts = [];
+                if ($goldCode  !== '') $parts[] = 'Gold: '  . htmlspecialchars($goldCode);
+                if ($jointCode !== '') $parts[] = 'Joint: ' . htmlspecialchars($jointCode);
+                echo implode('&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;', $parts);
+                ?>
+            </div>
+            <?php endif; ?>
 
         </div><!-- /tunch-container -->
     </div><!-- /tunch-preview -->
@@ -697,6 +802,9 @@ include 'navbar.php';
     <div class="report-actions">
         <button onclick="copyFullReportImage()" class="btn-pos btn-amber" style="height:38px;font-size:.875rem;">
             <i class="fas fa-copy" style="font-size:.65rem;"></i> Copy Report with QR
+        </button>
+        <button onclick="window.print()" class="btn-pos btn-ghost" style="height:38px;font-size:.875rem;">
+            <i class="fas fa-print" style="font-size:.65rem;"></i> Print Report
         </button>
         <a href="create_tunch_report.php" class="btn-pos btn-green" style="height:38px;font-size:.875rem;">
             <i class="fas fa-plus" style="font-size:.6rem;"></i> Create New Report
@@ -804,14 +912,7 @@ function selectBillItem(i) {
 function previewPhoto(input, previewId) {
     const preview = document.getElementById(previewId);
     if (input.files && input.files[0]) {
-        const file = input.files[0];
-        if (file.size > 200 * 1024) {
-            alert('Photo exceeds 200 KB limit. Please choose a smaller file.');
-            input.value = '';
-            preview.style.display = 'none';
-            return;
-        }
-        preview.src = URL.createObjectURL(file);
+        preview.src    = URL.createObjectURL(input.files[0]);
         preview.style.display = 'block';
     } else {
         preview.style.display = 'none';
@@ -822,6 +923,57 @@ document.addEventListener('DOMContentLoaded', () => {
     if (first) first.classList.add('selected');
     updateMetalType();
 });
+
+// ── Drag & Drop Photo Zones ───────────────────────────────────────────────
+const MAX_PHOTO_SIZE = 200 * 1024; // 200 KB
+const ALLOWED_TYPES  = ['image/jpeg','image/jpg','image/png','image/webp'];
+
+function dzValidate(file) {
+    if (!ALLOWED_TYPES.includes(file.type)) {
+        alert('Only JPG, PNG, or WEBP images are allowed.');
+        return false;
+    }
+    if (file.size > MAX_PHOTO_SIZE) {
+        alert('Photo exceeds 200 KB. Please choose a smaller file.');
+        return false;
+    }
+    return true;
+}
+function dzApply(file, zoneId, previewId) {
+    if (!dzValidate(file)) return;
+    document.getElementById(previewId).src = URL.createObjectURL(file);
+    document.getElementById(zoneId).classList.add('has-file');
+}
+function dzFromInput(input, zoneId, previewId) {
+    if (input.files && input.files[0]) dzApply(input.files[0], zoneId, previewId);
+}
+function dzEnter(e, zone) {
+    e.preventDefault();
+    zone.classList.add('dz-over');
+}
+function dzOver(e) {
+    e.preventDefault();
+}
+function dzLeave(e, zone) {
+    if (!zone.contains(e.relatedTarget)) zone.classList.remove('dz-over');
+}
+function dzDrop(e, zone, inputId, previewId) {
+    e.preventDefault();
+    zone.classList.remove('dz-over');
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    // Assign dropped file to the real hidden input so it submits with the form
+    const dt  = new DataTransfer();
+    dt.items.add(file);
+    document.getElementById(inputId).files = dt.files;
+    dzApply(file, zone.id, previewId);
+}
+function dzClear(e, zoneId, inputId, previewId) {
+    e.stopPropagation(); // don't trigger zone click
+    document.getElementById(inputId).value = '';
+    document.getElementById(previewId).src  = '';
+    document.getElementById(zoneId).classList.remove('has-file');
+}
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
 </body>
