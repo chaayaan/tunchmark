@@ -69,8 +69,8 @@ if (isset($_POST['submit_report'])) {
 
     // ── Validate uploaded images ──────────────────────────────────────────
     $allowed_types = ['image/jpeg','image/jpg','image/png','image/webp'];
-    $max_size      = 2 * 1024 * 1024; // 2 MB
-    $photo_paths   = []; // will store final relative paths for report_images
+    $max_size      = 2 * 1024 * 1024;
+    $photo_paths   = [];
 
     for ($n = 1; $n <= 2; $n++) {
         $key = 'photo_' . $n;
@@ -85,7 +85,6 @@ if (isset($_POST['submit_report'])) {
             $upload_error = "Photo $n exceeds 2 MB limit.";
             break;
         }
-        // Check real MIME type via finfo (not just extension)
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mime  = $finfo->file($file['tmp_name']);
         if (!in_array($mime, $allowed_types, true)) {
@@ -96,7 +95,6 @@ if (isset($_POST['submit_report'])) {
     }
 
     if ($upload_error) {
-        // Re-populate order data so the form is shown again with the error
         $stmt = mysqli_prepare($conn, "SELECT order_id, customer_name FROM orders WHERE order_id = ?");
         mysqli_stmt_bind_param($stmt, "i", $order_id);
         mysqli_stmt_execute($stmt);
@@ -112,7 +110,6 @@ if (isset($_POST['submit_report'])) {
         while ($row = mysqli_fetch_assoc($result)) $bill_items[] = $row;
         mysqli_stmt_close($stmt);
     } else {
-        // ── Insert report ─────────────────────────────────────────────────
         $sql = "INSERT INTO `customer_reports`
             (order_id, customer_name, item_name, service_name, weight,
              gold_purity_percent, silver_purity_percent, karat,
@@ -136,16 +133,12 @@ if (isset($_POST['submit_report'])) {
         $report_id = mysqli_insert_id($conn);
         mysqli_stmt_close($stmt);
 
-        // ── Save images ───────────────────────────────────────────────────
         $upload_dir = __DIR__ . '/uploads/tunch_reports/';
         if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
 
         foreach ($photo_paths as $n => $info) {
-            // Determine extension from real MIME
             $ext_map = ['image/jpeg'=>'jpg','image/jpg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
             $ext     = $ext_map[$info['mime']] ?? 'jpg';
-
-            // Rename: tunch_{report_id}_{photo_number}.ext
             $filename  = "tunch_{$report_id}_{$n}.{$ext}";
             $dest_path = $upload_dir . $filename;
             $rel_path  = "uploads/tunch_reports/{$filename}";
@@ -278,95 +271,123 @@ if (isset($_GET['report_id'])) {
         .xrf-textarea{font-family:'DM Mono',monospace;font-size:12px;line-height:1.6;}
         .parse-btn{margin-top:8px;}
 
-        /* Element group */
-        .element-group-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--t3);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--bsoft);}
-
         /* ── Drag & drop photo zones ── */
         .dz-wrap{display:flex;flex-direction:column;gap:6px;}
-        .drop-zone{
-            position:relative;display:flex;flex-direction:column;
-            align-items:center;justify-content:center;gap:6px;
-            height:130px;border:2px dashed var(--border);border-radius:var(--rs);
-            cursor:pointer;background:var(--s2);transition:border-color .15s,background .15s;
-            overflow:hidden;
-        }
-        .drop-zone:hover,.drop-zone.dz-over{
-            border-color:var(--violet);background:var(--violet-bg);
-        }
-        .drop-zone.dz-over{ border-style:solid; }
-        .drop-zone.has-file{
-            border-style:solid;border-color:var(--green-b);background:var(--green-bg);
-        }
-        .drop-zone.has-file .dz-placeholder{ display:none; }
+        .drop-zone{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;height:130px;border:2px dashed var(--border);border-radius:var(--rs);cursor:pointer;background:var(--s2);transition:border-color .15s,background .15s;overflow:hidden;}
+        .drop-zone:hover,.drop-zone.dz-over{border-color:var(--violet);background:var(--violet-bg);}
+        .drop-zone.dz-over{border-style:solid;}
+        .drop-zone.has-file{border-style:solid;border-color:var(--green-b);background:var(--green-bg);}
+        .drop-zone.has-file .dz-placeholder{display:none;}
         .dz-placeholder{display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;}
         .dz-placeholder i{font-size:1.5rem;color:var(--t4);}
         .dz-placeholder span{font-size:.75rem;color:var(--t3);font-weight:600;}
         .dz-placeholder small{font-size:.68rem;color:var(--t4);}
-        /* preview image fills the zone */
-        .dz-preview{
-            position:absolute;inset:0;width:100%;height:100%;
-            object-fit:cover;display:none;border-radius:calc(var(--rs) - 2px);
-        }
-        .drop-zone.has-file .dz-preview{ display:block; }
-        /* clear button */
-        .dz-clear{
-            position:absolute;top:5px;right:5px;
-            width:22px;height:22px;border-radius:50%;
-            background:rgba(220,38,38,.85);border:none;
-            color:#fff;font-size:9px;cursor:pointer;
-            display:none;align-items:center;justify-content:center;
-            z-index:10;
-        }
-        .drop-zone.has-file .dz-clear{ display:flex; }
-        /* hidden real file input */
-        .dz-input{ display:none; }
+        .dz-preview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;border-radius:calc(var(--rs) - 2px);}
+        .drop-zone.has-file .dz-preview{display:block;}
+        .dz-clear{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(220,38,38,.85);border:none;color:#fff;font-size:9px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:10;}
+        .drop-zone.has-file .dz-clear{display:flex;}
+        .dz-input{display:none;}
 
-        /* Report */
+        /* ── Report styles (Arial throughout) ── */
         .report-wrap{padding:20px 22px 60px;display:flex;flex-direction:column;gap:14px;max-width:860px;}
         .tunch-preview{width:auto;max-width:700px;padding:0 30px;background:white;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;}
-        .tunch-container{padding:0 20px;background:white;position:relative;}
-        .tunch-container::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);width:200px;height:200px;background-image:url('Varifiedstamp.png');background-size:contain;background-repeat:no-repeat;background-position:center;opacity:0.2;z-index:1;pointer-events:none;}
+
+        /* tunch-container: watermark + Arial base font */
+        .tunch-container{
+            padding:6px 20px 10px;
+            background:white;
+            position:relative;
+            font-family:Arial,Helvetica,sans-serif;
+        }
+        .tunch-container::before{
+            content:'';position:absolute;top:50%;left:50%;
+            transform:translate(-50%,-50%) rotate(-25deg);
+            width:200px;height:200px;
+            background-image:url('Varifiedstamp.png');
+            background-size:contain;background-repeat:no-repeat;background-position:center;
+            opacity:0.2;z-index:1;pointer-events:none;
+        }
         .tunch-container > *{position:relative;z-index:2;}
+
+        /* Customer info */
         .report-header{display:flex;justify-content:space-between;align-items:flex-start;}
         .customer-info{flex:1;}
-        .customer-info-line{margin:0;padding:0;font-size:15px;line-height:1.8;display:flex;color:#000;font-weight:600;}
-        .customer-info-line.customer-name{font-size:22px;font-weight:bold;margin-bottom:3px;}
-        .info-label{display:inline-block;min-width:120px;font-weight:600;}
-        .info-colon{display:inline-block;width:15px;text-align:center;}
+        .customer-info-line{margin:0;padding:0;font-size:13px;line-height:1.7;display:flex;color:#000;font-weight:600;font-family:Arial,Helvetica,sans-serif;}
+        .customer-info-line.customer-name{font-size:19px;font-weight:700;margin-bottom:2px;}
+        .info-label{display:inline-block;min-width:110px;font-weight:600;}
+        .info-colon{display:inline-block;width:12px;text-align:center;}
         .info-value{flex:1;font-weight:600;}
-        .qr-section{width:100px;text-align:center;padding:5px;margin-left:15px;flex-shrink:0;}
-        .qr-date{font-size:12px;color:#000;font-weight:700;line-height:1.4;margin-top:5px;white-space:nowrap;}
-        .weight-conversion{font-size:13px;color:#333;font-weight:600;margin-left:10px;}
-        .dotted-line{border-top:3px dotted #000;margin:5px 0;}
-        .quality-info{font-size:24px;font-weight:bold;margin:5px 0;line-height:1.5;display:flex;justify-content:space-around;flex-wrap:wrap;gap:20px;color:#000;}
+        .weight-conversion{font-size:11px;color:#333;font-weight:600;margin-left:8px;}
+
+        /* QR */
+        .qr-section{width:95px;text-align:center;padding:4px;flex-shrink:0;}
+        .qr-section #qrcode{display:inline-block;}
+        .qr-date{font-size:10px;color:#000;font-weight:700;line-height:1.4;margin-top:4px;white-space:nowrap;font-family:Arial,Helvetica,sans-serif;}
+
+        /* Dividers */
+        .solid-line{border:none;border-top:2px solid #000;margin:4px 0;}
+
+        /* Purity row */
+        .quality-info{
+            font-size:21px;font-weight:700;
+            margin:3px 0;line-height:1.4;
+            display:flex;justify-content:space-around;flex-wrap:wrap;gap:16px;
+            color:#000;font-family:Arial,Helvetica,sans-serif;
+            text-align:center;
+        }
         .quality-info span{white-space:nowrap;}
-        .composition-table{width:100%;margin:2px 0 0;font-size:11px;line-height:1.1;border-collapse:collapse;}
-        .composition-table td{padding:1px 5px;font-weight:600;vertical-align:top;}
-        .composition-table td.element-name{text-align:left;padding-right:3px;}
+
+        /* Composition table */
+        .composition-table{width:100%;margin:2px 0 0;font-size:11px;line-height:1.2;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;}
+        .composition-table td{padding:1px 4px;font-weight:600;vertical-align:top;}
+        .composition-table td.element-name{text-align:left;padding-right:2px;}
         .composition-table td.element-colon{text-align:center;padding:1px 2px;}
-        .composition-table td.element-value{text-align:left;padding-left:3px;padding-right:15px;}
-        .report-note{font-size:11px;line-height:1.4;margin:3px 0 0;font-weight:600;color:#000;}
-        .report-photos{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
-        .report-photos img{width:140px;height:100px;object-fit:cover;border-radius:4px;border:1px solid #ddd;}
-        .report-codes{font-size:11px;text-align:right;margin:4px 0 0;font-weight:bold;color:#000;}
+        .composition-table td.element-value{text-align:left;padding-left:2px;padding-right:12px;}
+
+        /* NB note — no bottom margin */
+        .report-note{font-size:10px;line-height:1.35;margin:2px 0 0;font-weight:600;color:#000;font-family:Arial,Helvetica,sans-serif;}
+
+        /* Bottom section */
+        .bottom-section{width:100%;border-collapse:collapse;margin-top:5px;}
+        .bottom-section td{padding:0;vertical-align:bottom;}
+        .photo-cell{width:66.66%;padding-right:8px;vertical-align:bottom;}
+        .right-cell{width:33.33%;padding-left:8px;vertical-align:top;}
+
+        /* Photos */
+        .report-photos{display:flex;gap:6px;flex-wrap:wrap;}
+        .report-photos img{width:138px;height:100px;object-fit:cover;border-radius:3px;border:1px solid #ddd;}
+
+        /* Gold + Joint same line */
+        .gold-joint-row{
+            font-size:11px;font-weight:700;color:#000;
+            font-family:Arial,Helvetica,sans-serif;
+            display:flex;justify-content:flex-end;gap:16px;
+            flex-wrap:wrap;padding-top:2px;
+        }
+        .gold-joint-row span{white-space:nowrap;}
+
+        /* Signature */
+        .sig-wrap{margin-top:auto;padding-top:4px;}
+        .sig-line-inner{border-top:1px solid #000;padding-top:3px;text-align:center;}
+        .sig-text{font-size:10px;font-weight:700;color:#000;letter-spacing:.03em;font-family:Arial,Helvetica,sans-serif;}
+
+        /* right-cell inner flex */
+        .right-cell-inner{display:flex;flex-direction:column;justify-content:space-between;min-height:110px;}
+
+        /* Actions */
         .report-actions{display:flex;align-items:center;justify-content:center;gap:10px;padding:16px 18px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);flex-wrap:wrap;}
 
         @media(max-width:991.98px){.page-shell{margin-left:0;}.top-bar{top:52px;}.col-divider{border-left:none;border-top:2px solid var(--border);padding-top:14px;margin-top:0;}}
         @media print {
-            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-            body { background: #fff !important; }
-            /* Hide navbar, top bar, form, buttons, alerts — everything except the report */
-            #app-navbar,
-            nav, aside, #navbar, .navbar, [class*="navbar"], [class*="sidebar"],
-            .top-bar,
-            .split-body,
-            .report-actions,
-            .pos-alert,
-            .report-wrap > *:not(.tunch-preview) { display: none !important; }
-            .page-shell { margin-left: 0 !important; }
-            .report-wrap { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
-            .tunch-preview { max-width: 100% !important; border: none !important; box-shadow: none !important; padding: 0 !important; }
-            .tunch-container { padding: 0 10px !important; }
+            *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;}
+            body{background:#fff !important;}
+            #app-navbar,nav,aside,#navbar,.navbar,[class*="navbar"],[class*="sidebar"],
+            .top-bar,.split-body,.report-actions,.pos-alert,
+            .report-wrap > *:not(.tunch-preview){display:none !important;}
+            .page-shell{margin-left:0 !important;}
+            .report-wrap{padding:0 !important;margin:0 !important;max-width:100% !important;}
+            .tunch-preview{max-width:100% !important;border:none !important;box-shadow:none !important;padding:0 !important;}
+            .tunch-container{padding:4px 10px 8px !important;}
         }
     </style>
 </head>
@@ -398,11 +419,11 @@ if (isset($_GET['report_id'])) {
 <div class="split-body">
 <div class="row g-0">
 
-<!-- LEFT col: Steps 1–4 + photos -->
+<!-- LEFT col -->
 <div class="col-12 col-lg-6 pe-lg-3">
 <div class="split-left">
 
-    <!-- Step 1 — Fetch Order -->
+    <!-- Step 1 -->
     <div class="sec">
         <div class="sec-hd">
             <span class="sec-ico si-vi"><i class="fas fa-magnifying-glass"></i></span>
@@ -434,7 +455,7 @@ if (isset($_GET['report_id'])) {
 
     <?php if ($order_data && !empty($bill_items)): ?>
 
-    <!-- Step 2 — Select Bill Item -->
+    <!-- Step 2 -->
     <div class="sec">
         <div class="sec-hd">
             <span class="sec-ico si-am"><i class="fas fa-list-check"></i></span>
@@ -457,13 +478,13 @@ if (isset($_GET['report_id'])) {
         </div>
     </div>
 
-    <!-- MAIN FORM — enctype required for file upload -->
+    <!-- MAIN FORM -->
     <form method="POST" id="reportForm" enctype="multipart/form-data">
         <input type="hidden" name="order_id"     value="<?= htmlspecialchars($order_data['order_id']) ?>">
         <input type="hidden" name="bill_item_id" id="bill_item_id" value="<?= $bill_items[0]['bill_item_id'] ?>">
         <input type="hidden" name="service_name" id="service_name" value="<?= htmlspecialchars($bill_items[0]['service_name']) ?>">
 
-        <!-- Step 3 — Customer & Sample Details -->
+        <!-- Step 3 -->
         <div class="sec">
             <div class="sec-hd">
                 <span class="sec-ico si-bl"><i class="fas fa-user"></i></span>
@@ -492,7 +513,7 @@ if (isset($_GET['report_id'])) {
             </div>
         </div>
 
-        <!-- Step 4 — XRF Paste -->
+        <!-- Step 4 -->
         <div class="sec">
             <div class="sec-hd">
                 <span class="sec-ico si-vi"><i class="fas fa-paste"></i></span>
@@ -516,14 +537,14 @@ if (isset($_GET['report_id'])) {
             </div>
         </div>
 
-    </form><!-- end reportForm -->
+    </form>
 
     <?php endif; ?>
 
-</div><!-- /split-left -->
-</div><!-- /left col -->
+</div>
+</div>
 
-<!-- RIGHT col: Step 5 — Testing Results -->
+<!-- RIGHT col -->
 <div class="col-12 col-lg-6 ps-lg-3 col-divider">
 <div class="split-right">
 
@@ -535,7 +556,6 @@ if (isset($_GET['report_id'])) {
         </div>
         <div class="sec-body" style="display:flex;flex-direction:column;gap:14px;">
 
-            <!-- Purity & Karat -->
             <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--violet-bg);border:1px solid #ddd6fe;border-radius:7px;">
                 <span style="font-size:.78rem;font-weight:700;color:var(--violet);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;" id="purityLabel">Gold Purity</span>
                 <input type="number" name="purity_percent" id="purity_percent" class="fc" form="reportForm"
@@ -547,7 +567,6 @@ if (isset($_GET['report_id'])) {
                        style="font-family:'DM Mono',monospace;height:30px;padding:0 6px;width:80px;">
             </div>
 
-            <!-- Element grid — 3 columns, 25 elements -->
             <table style="width:100%;border-collapse:collapse;">
             <?php
             $elemOrder = ['silver','copper','zinc','cadmium','iridium','rhodium','cobalt',
@@ -574,7 +593,6 @@ if (isset($_GET['report_id'])) {
             <?php endforeach; ?>
             </table>
 
-            <!-- Gold & Joint -->
             <div style="display:flex;align-items:center;gap:24px;padding:10px 14px;background:var(--s2);border:1px solid var(--border);border-radius:7px;">
                 <span style="font-size:.78rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;">Gold &amp; Joint</span>
                 <div style="display:flex;align-items:center;gap:8px;flex:1;">
@@ -600,9 +618,9 @@ if (isset($_GET['report_id'])) {
             </div>
 
         </div>
-    </div><!-- /Step 5 -->
+    </div>
 
-    <!-- Step 6 — Sample Photos + Generate -->
+    <!-- Step 6 -->
     <div class="sec">
         <div class="sec-hd">
             <span class="sec-ico si-am"><i class="fas fa-images"></i></span>
@@ -618,54 +636,38 @@ if (isset($_GET['report_id'])) {
             <?php endif; ?>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
 
-                <!-- Photo 1 -->
                 <div class="dz-wrap">
                     <label class="lbl">Photo 1 <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">optional</span></label>
                     <div class="drop-zone" id="dz1"
                          onclick="document.getElementById('photo_1').click()"
-                         ondragenter="dzEnter(event,this)"
-                         ondragover="dzOver(event)"
-                         ondragleave="dzLeave(event,this)"
-                         ondrop="dzDrop(event,this,'photo_1','prev1')">
+                         ondragenter="dzEnter(event,this)" ondragover="dzOver(event)"
+                         ondragleave="dzLeave(event,this)" ondrop="dzDrop(event,this,'photo_1','prev1')">
                         <div class="dz-placeholder">
                             <i class="fas fa-cloud-arrow-up"></i>
-                            <span>Drag & drop or click</span>
+                            <span>Drag &amp; drop or click</span>
                             <small>JPG · PNG · WEBP · max 200 KB</small>
                         </div>
                         <img id="prev1" class="dz-preview" alt="Photo 1">
-                        <button type="button" class="dz-clear"
-                                onclick="dzClear(event,'dz1','photo_1','prev1')" title="Remove">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <button type="button" class="dz-clear" onclick="dzClear(event,'dz1','photo_1','prev1')" title="Remove"><i class="fas fa-times"></i></button>
                     </div>
-                    <input type="file" id="photo_1" name="photo_1" class="dz-input"
-                           form="reportForm" accept=".jpg,.jpeg,.png,.webp"
-                           onchange="dzFromInput(this,'dz1','prev1')">
+                    <input type="file" id="photo_1" name="photo_1" class="dz-input" form="reportForm" accept=".jpg,.jpeg,.png,.webp" onchange="dzFromInput(this,'dz1','prev1')">
                 </div>
 
-                <!-- Photo 2 -->
                 <div class="dz-wrap">
                     <label class="lbl">Photo 2 <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">optional</span></label>
                     <div class="drop-zone" id="dz2"
                          onclick="document.getElementById('photo_2').click()"
-                         ondragenter="dzEnter(event,this)"
-                         ondragover="dzOver(event)"
-                         ondragleave="dzLeave(event,this)"
-                         ondrop="dzDrop(event,this,'photo_2','prev2')">
+                         ondragenter="dzEnter(event,this)" ondragover="dzOver(event)"
+                         ondragleave="dzLeave(event,this)" ondrop="dzDrop(event,this,'photo_2','prev2')">
                         <div class="dz-placeholder">
                             <i class="fas fa-cloud-arrow-up"></i>
-                            <span>Drag & drop or click</span>
+                            <span>Drag &amp; drop or click</span>
                             <small>JPG · PNG · WEBP · max 200 KB</small>
                         </div>
                         <img id="prev2" class="dz-preview" alt="Photo 2">
-                        <button type="button" class="dz-clear"
-                                onclick="dzClear(event,'dz2','photo_2','prev2')" title="Remove">
-                            <i class="fas fa-times"></i>
-                        </button>
+                        <button type="button" class="dz-clear" onclick="dzClear(event,'dz2','photo_2','prev2')" title="Remove"><i class="fas fa-times"></i></button>
                     </div>
-                    <input type="file" id="photo_2" name="photo_2" class="dz-input"
-                           form="reportForm" accept=".jpg,.jpeg,.png,.webp"
-                           onchange="dzFromInput(this,'dz2','prev2')">
+                    <input type="file" id="photo_2" name="photo_2" class="dz-input" form="reportForm" accept=".jpg,.jpeg,.png,.webp" onchange="dzFromInput(this,'dz2','prev2')">
                 </div>
 
             </div>
@@ -676,7 +678,7 @@ if (isset($_GET['report_id'])) {
                 <i class="fas fa-file-circle-check" style="font-size:.7rem;"></i> Generate Tunch Report
             </button>
         </div>
-    </div><!-- /Step 6 -->
+    </div>
 
     <?php else: ?>
     <div class="rp-placeholder">
@@ -686,18 +688,18 @@ if (isset($_GET['report_id'])) {
     </div>
     <?php endif; ?>
 
-</div><!-- /split-right -->
-</div><!-- /right col -->
+</div>
+</div>
 
-</div><!-- /row -->
-</div><!-- /split-body -->
+</div>
+</div>
 
 <?php endif; ?>
 
 <!-- ═══════════════════════════════════════════ REPORT ═══ -->
 <?php if ($report_created && $report_data):
-    $itemLower  = strtolower($report_data['item_name']);
-    $isSilver   = strpos($itemLower,'silver')!==false || strpos($itemLower,'চাঁদি')!==false || strpos($itemLower,'rupa')!==false;
+    $itemLower   = strtolower($report_data['item_name']);
+    $isSilver    = strpos($itemLower,'silver')!==false || strpos($itemLower,'চাঁদি')!==false || strpos($itemLower,'rupa')!==false;
     $purityLabel = $isSilver ? 'Silver Purity' : 'Gold Purity';
     $purityValue = $isSilver ? $report_data['silver_purity_percent'] : $report_data['gold_purity_percent'];
     $elementOrder = $isSilver ? $SILVER_ELEMENTS : $GOLD_ELEMENTS;
@@ -714,7 +716,6 @@ if (isset($_GET['report_id'])) {
     $jointCode = $report_data['joint'] !== null ? number_format((float)$report_data['joint'], 3) : '';
     $nbNote    = 'The report pertains to specific point and not responsible for other point or melting issues.';
 
-    // Load images
     $imgStmt = mysqli_prepare($conn,
         "SELECT img_path FROM report_images WHERE report_id=? AND img_type='tunch' ORDER BY img_number ASC LIMIT 2");
     mysqli_stmt_bind_param($imgStmt, 'i', $report_data['id']);
@@ -729,37 +730,40 @@ if (isset($_GET['report_id'])) {
     <div class="tunch-preview">
         <div class="tunch-container" id="reportPreview">
 
-            <div class="report-header">
-                <div class="customer-info">
-                    <div class="customer-info-line customer-name">Customer Name : <?= htmlspecialchars($report_data['customer_name']) ?></div>
-                    <div class="customer-info-line">
-                        <span class="info-label">Sample Item</span><span class="info-colon">:</span>
-                        <span class="info-value"><?= htmlspecialchars($report_data['item_name']) ?></span>
-                    </div>
-                    <div class="customer-info-line">
-                        <span class="info-label">Sample Weight</span><span class="info-colon">:</span>
-                        <span class="info-value"><?= htmlspecialchars($report_data['weight']) ?> Gm<span class="weight-conversion" id="weightConversion"></span></span>
-                    </div>
-                    <div class="customer-info-line">
-                        <span class="info-label">Bill No</span><span class="info-colon">:</span>
-                        <span class="info-value"><?= htmlspecialchars($report_data['order_id']) ?></span>
-                    </div>
-                </div>
-                <div class="qr-section">
-                    <div id="qrcode"></div>
-                    <div class="qr-date"><?= date('d-M-y', strtotime($report_data['created_at'])) ?> <?= date('g:i A', strtotime($report_data['created_at'])) ?></div>
-                </div>
-            </div>
+            <!-- ── Section 1: Customer Info ── -->
+            <table style="width:100%;border-collapse:collapse;margin-bottom:0;">
+                <tr>
+                    <td style="width:72%;vertical-align:top;">
+                        <div class="customer-info-line customer-name">Customer Name : <?= htmlspecialchars($report_data['customer_name']) ?></div>
+                        <div class="customer-info-line">
+                            <span class="info-label">Sample Item</span><span class="info-colon">:</span>
+                            <span class="info-value"><?= htmlspecialchars($report_data['item_name']) ?></span>
+                        </div>
+                        <div class="customer-info-line">
+                            <span class="info-label">Sample Weight</span><span class="info-colon">:</span>
+                            <span class="info-value"><?= htmlspecialchars($report_data['weight']) ?> Gm<span class="weight-conversion" id="weightConversion"></span></span>
+                        </div>
+                        <div class="customer-info-line">
+                            <span class="info-label">Bill No</span><span class="info-colon">:</span>
+                            <span class="info-value"><?= htmlspecialchars($report_data['order_id']) ?></span>
+                        </div>
+                    </td>
+                    <td style="width:28%;vertical-align:top;text-align:center;" class="qr-section">
+                        <div id="qrcode" style="display:inline-block;"></div>
+                        <div class="qr-date" style="text-align:center;"><?= date('d-M-y', strtotime($report_data['created_at'])) ?> <?= date('g:i A', strtotime($report_data['created_at'])) ?></div>
+                    </td>
+                </tr>
+            </table>
 
-            <div class="dotted-line"></div>
-
+            <!-- ── Section 2: Gold Purity ── -->
+            <hr class="solid-line">
             <div class="quality-info">
-                <span><?= $purityLabel ?> : <?= htmlspecialchars($purityValue ?? 'N/A') ?>%</span>
+                <span><?= $purityLabel ?> : <?= $purityValue !== null ? rtrim(rtrim(number_format((float)$purityValue, 2), '0'), '.') : 'N/A' ?>%</span>
                 <span>Karat : <?= htmlspecialchars($report_data['karat'] ?? 'N/A') ?>K</span>
             </div>
+            <hr class="solid-line">
 
-            <div class="dotted-line"></div>
-
+            <!-- ── Section 3: Element Composition ── -->
             <?php if (!empty($elements)): ?>
             <table class="composition-table">
                 <?php foreach (array_chunk($elements, 3) as $row): ?>
@@ -775,49 +779,44 @@ if (isset($_GET['report_id'])) {
             </table>
             <?php endif; ?>
 
+            <!-- NB note — directly after composition, no gap -->
             <div class="report-note">NB:- <?= htmlspecialchars($nbNote) ?></div>
 
-            <!-- Bottom 2-col: photos (8/12) | gold/joint + signature (4/12) -->
-            <div style="display:table;width:100%;margin-top:6px;">
-
-                <!-- LEFT: sample photos -->
-                <div style="display:table-cell;width:66.66%;vertical-align:bottom;padding-right:8px;">
-                    <?php if (!empty($report_images)): ?>
-                    <div class="report-photos" style="margin-top:0;">
-                        <?php foreach ($report_images as $img_path): ?>
-                        <img src="<?= htmlspecialchars($img_path) ?>" alt="Sample photo">
-                        <?php endforeach; ?>
-                    </div>
-                    <?php endif; ?>
-                </div>
-
-                <!-- RIGHT: gold/joint top + authorized signature bottom -->
-                <div style="display:table-cell;width:33.33%;vertical-align:top;padding-left:8px;">
-                <div style="display:flex;flex-direction:column;justify-content:space-between;height:100%;min-height:80px;">
-
-                    <!-- TOP: gold & joint -->
-                    <div style="text-align:right;">
-                        <?php if ($goldCode !== '' || $jointCode !== ''): ?>
-                        <div style="display:flex;justify-content:flex-end;gap:12px;flex-wrap:wrap;">
-                            <?php if ($goldCode !== ''): ?>
-                            <span style="font-size:11px;font-weight:700;color:#000;white-space:nowrap;">Gold : <?= htmlspecialchars($goldCode) ?></span>
-                            <?php endif; ?>
-                            <?php if ($jointCode !== ''): ?>
-                            <span style="font-size:11px;font-weight:700;color:#000;white-space:nowrap;">Joint : <?= htmlspecialchars($jointCode) ?></span>
-                            <?php endif; ?>
+            <!-- ── Section 4: Bottom ── -->
+            <table class="bottom-section">
+                <tr>
+                    <!-- LEFT: photos (8 cols) -->
+                    <td class="photo-cell">
+                        <?php if (!empty($report_images)): ?>
+                        <div class="report-photos">
+                            <?php foreach ($report_images as $img_path): ?>
+                            <img src="<?= htmlspecialchars($img_path) ?>" alt="Sample photo">
+                            <?php endforeach; ?>
                         </div>
                         <?php endif; ?>
-                    </div>
-
-                    <!-- BOTTOM: authorized signature always shown, centered -->
-                    <div style="border-top:1px solid #000;padding-top:4px;text-align:center;margin-top:28px;">
-                        <span style="font-size:10px;font-weight:700;color:#000;letter-spacing:.03em;">Authorized Signature</span>
-                    </div>
-
-                </div>
-                </div>
-
-            </div><!-- /bottom 2-col -->
+                    </td>
+                    <!-- RIGHT: gold+joint + signature (4 cols) -->
+                    <td class="right-cell">
+                        <div class="right-cell-inner">
+                            <!-- Gold + Joint on same line -->
+                            <div class="gold-joint-row">
+                                <?php if ($goldCode !== ''): ?>
+                                <span>Gold : <?= htmlspecialchars($goldCode) ?></span>
+                                <?php endif; ?>
+                                <?php if ($jointCode !== ''): ?>
+                                <span>Joint : <?= htmlspecialchars($jointCode) ?></span>
+                                <?php endif; ?>
+                            </div>
+                            <!-- Authorized Signature -->
+                            <div class="sig-wrap">
+                                <div class="sig-line-inner">
+                                    <span class="sig-text">Authorized Signature</span>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            </table>
 
         </div><!-- /tunch-container -->
     </div><!-- /tunch-preview -->
@@ -920,26 +919,17 @@ function parseXRFData() {
     setTimeout(() => { btn.innerHTML = orig; btn.style.background = ''; }, 2000);
 }
 function selectBillItem(i) {
-    document.getElementById('bi_' + i).checked        = true;
-    document.getElementById('bill_item_id').value     = billItems[i].bill_item_id;
-    document.getElementById('item_name').value        = billItems[i].item_name;
-    document.getElementById('weight').value           = billItems[i].weight;
-    document.getElementById('service_name').value     = billItems[i].service_name;
-    document.getElementById('xrf_raw').value          = '';
-    document.getElementById('purity_percent').value   = '';
-    document.getElementById('karat').value            = '';
+    document.getElementById('bi_' + i).checked    = true;
+    document.getElementById('bill_item_id').value = billItems[i].bill_item_id;
+    document.getElementById('item_name').value    = billItems[i].item_name;
+    document.getElementById('weight').value       = billItems[i].weight;
+    document.getElementById('service_name').value = billItems[i].service_name;
+    document.getElementById('xrf_raw').value      = '';
+    document.getElementById('purity_percent').value = '';
+    document.getElementById('karat').value        = '';
     updateMetalType();
     document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected'));
     event.currentTarget.classList.add('selected');
-}
-function previewPhoto(input, previewId) {
-    const preview = document.getElementById(previewId);
-    if (input.files && input.files[0]) {
-        preview.src    = URL.createObjectURL(input.files[0]);
-        preview.style.display = 'block';
-    } else {
-        preview.style.display = 'none';
-    }
 }
 document.addEventListener('DOMContentLoaded', () => {
     const first = document.querySelector('.item-card');
@@ -947,19 +937,11 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMetalType();
 });
 
-// ── Drag & Drop Photo Zones ───────────────────────────────────────────────
-const MAX_PHOTO_SIZE = 200 * 1024; // 200 KB
+const MAX_PHOTO_SIZE = 200 * 1024;
 const ALLOWED_TYPES  = ['image/jpeg','image/jpg','image/png','image/webp'];
-
 function dzValidate(file) {
-    if (!ALLOWED_TYPES.includes(file.type)) {
-        alert('Only JPG, PNG, or WEBP images are allowed.');
-        return false;
-    }
-    if (file.size > MAX_PHOTO_SIZE) {
-        alert('Photo exceeds 200 KB. Please choose a smaller file.');
-        return false;
-    }
+    if (!ALLOWED_TYPES.includes(file.type)) { alert('Only JPG, PNG, or WEBP images are allowed.'); return false; }
+    if (file.size > MAX_PHOTO_SIZE) { alert('Photo exceeds 200 KB. Please choose a smaller file.'); return false; }
     return true;
 }
 function dzApply(file, zoneId, previewId) {
@@ -967,32 +949,19 @@ function dzApply(file, zoneId, previewId) {
     document.getElementById(previewId).src = URL.createObjectURL(file);
     document.getElementById(zoneId).classList.add('has-file');
 }
-function dzFromInput(input, zoneId, previewId) {
-    if (input.files && input.files[0]) dzApply(input.files[0], zoneId, previewId);
-}
-function dzEnter(e, zone) {
-    e.preventDefault();
-    zone.classList.add('dz-over');
-}
-function dzOver(e) {
-    e.preventDefault();
-}
-function dzLeave(e, zone) {
-    if (!zone.contains(e.relatedTarget)) zone.classList.remove('dz-over');
-}
+function dzFromInput(input, zoneId, previewId) { if (input.files && input.files[0]) dzApply(input.files[0], zoneId, previewId); }
+function dzEnter(e, zone) { e.preventDefault(); zone.classList.add('dz-over'); }
+function dzOver(e) { e.preventDefault(); }
+function dzLeave(e, zone) { if (!zone.contains(e.relatedTarget)) zone.classList.remove('dz-over'); }
 function dzDrop(e, zone, inputId, previewId) {
-    e.preventDefault();
-    zone.classList.remove('dz-over');
-    const file = e.dataTransfer.files[0];
-    if (!file) return;
-    // Assign dropped file to the real hidden input so it submits with the form
-    const dt  = new DataTransfer();
-    dt.items.add(file);
+    e.preventDefault(); zone.classList.remove('dz-over');
+    const file = e.dataTransfer.files[0]; if (!file) return;
+    const dt = new DataTransfer(); dt.items.add(file);
     document.getElementById(inputId).files = dt.files;
     dzApply(file, zone.id, previewId);
 }
 function dzClear(e, zoneId, inputId, previewId) {
-    e.stopPropagation(); // don't trigger zone click
+    e.stopPropagation();
     document.getElementById(inputId).value = '';
     document.getElementById(previewId).src  = '';
     document.getElementById(zoneId).classList.remove('has-file');
