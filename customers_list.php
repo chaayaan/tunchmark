@@ -1,10 +1,69 @@
-<?php require 'auth.php'; ?>
+<?php
+require 'auth.php';
+include 'mydb.php';
+
+// Handle ADD — must run before any output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_name'])) {
+    $add_name  = trim($_POST['add_name']);
+    $add_phone = trim($_POST['add_phone']);
+    $add_addr  = trim($_POST['add_address']);
+    $add_mfr   = trim($_POST['add_manufacturer']);
+    $ins_stmt  = mysqli_prepare($conn,
+        "INSERT INTO customers (name, phone, address, manufacturer) VALUES (?, ?, ?, ?)");
+    mysqli_stmt_bind_param($ins_stmt, 'ssss', $add_name, $add_phone, $add_addr, $add_mfr);
+    mysqli_stmt_execute($ins_stmt);
+    mysqli_stmt_close($ins_stmt);
+    $redirect_params = [
+        'page'     => 1,
+        'per_page' => isset($_GET['per_page']) ? intval($_GET['per_page']) : 1000,
+    ];
+    if (!empty($_GET['search'])) $redirect_params['search'] = trim($_GET['search']);
+    header('Location: customers_list.php?' . http_build_query($redirect_params));
+    exit;
+}
+
+// Handle EDIT — must run before any output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_id'])) {
+    $edit_id       = trim($_POST['edit_id']);
+    $edit_name     = trim($_POST['edit_name']);
+    $edit_phone    = trim($_POST['edit_phone']);
+    $edit_address  = trim($_POST['edit_address']);
+    $edit_mfr      = trim($_POST['edit_manufacturer']);
+    $upd_stmt = mysqli_prepare($conn,
+        "UPDATE customers SET name=?, phone=?, address=?, manufacturer=? WHERE id=?");
+    mysqli_stmt_bind_param($upd_stmt, 'sssss',
+        $edit_name, $edit_phone, $edit_address, $edit_mfr, $edit_id);
+    mysqli_stmt_execute($upd_stmt);
+    mysqli_stmt_close($upd_stmt);
+    $redirect_params = [
+        'page'     => isset($_GET['page'])     ? intval($_GET['page'])     : 1,
+        'per_page' => isset($_GET['per_page']) ? intval($_GET['per_page']) : 1000,
+    ];
+    if (!empty($_GET['search'])) $redirect_params['search'] = trim($_GET['search']);
+    header('Location: customers_list.php?' . http_build_query($redirect_params));
+    exit;
+}
+
+// Handle DELETE — must run before any output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
+    $delete_id = trim($_POST['delete_id']);
+    $del_stmt = mysqli_prepare($conn, "DELETE FROM customers WHERE id = ?");
+    mysqli_stmt_bind_param($del_stmt, 's', $delete_id);
+    mysqli_stmt_execute($del_stmt);
+    mysqli_stmt_close($del_stmt);
+    $redirect_params = [
+        'page'     => isset($_GET['page'])     ? intval($_GET['page'])     : 1,
+        'per_page' => isset($_GET['per_page']) ? intval($_GET['per_page']) : 1000,
+    ];
+    if (!empty($_GET['search'])) $redirect_params['search'] = trim($_GET['search']);
+    header('Location: customers_list.php?' . http_build_query($redirect_params));
+    exit;
+}
+?>
 <?php include 'navbar.php'; ?>
-<?php include 'mydb.php'; ?>
 <?php
 // Pagination settings
 $records_per_page = isset($_GET['per_page']) ? intval($_GET['per_page']) : 1000;
-// Validate records per page (only allow 500, 800, 1000)
 if (!in_array($records_per_page, [500, 800, 1000])) {
     $records_per_page = 1000;
 }
@@ -53,7 +112,6 @@ if (!empty($params)) {
 mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 
-// Build query string for pagination links
 function buildQueryString($page, $search, $per_page) {
     $params = ['page' => $page];
     if (!empty($search)) $params['search'] = $search;
@@ -102,7 +160,6 @@ function buildQueryString($page, $search, $per_page) {
             min-height: 100vh;
         }
 
-        /* ── Shell ─────────────────────────────── */
         .page-shell {
             margin-left: 200px;
             min-height: 100vh;
@@ -110,7 +167,6 @@ function buildQueryString($page, $search, $per_page) {
             flex-direction: column;
         }
 
-        /* ── Top bar ───────────────────────────── */
         .top-bar {
             position: sticky; top: 0; z-index: 200;
             height: 54px;
@@ -130,7 +186,6 @@ function buildQueryString($page, $search, $per_page) {
         .tb-sub   { font-size: .78rem; color: var(--t4); }
         .tb-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 
-        /* ── Buttons ───────────────────────────── */
         .btn-pos {
             display: inline-flex; align-items: center; gap: 6px;
             height: 34px; padding: 0 16px;
@@ -147,13 +202,11 @@ function buildQueryString($page, $search, $per_page) {
         }
         .btn-ghost:hover { background: var(--s2); border-color: #9ca3af; color: var(--t1); }
 
-        /* ── Main ──────────────────────────────── */
         .main {
             flex: 1;
             padding: 20px 22px 60px;
         }
 
-        /* ── Card ──────────────────────────────── */
         .pos-card {
             background: var(--surface);
             border: 1px solid var(--border);
@@ -162,7 +215,6 @@ function buildQueryString($page, $search, $per_page) {
             overflow: hidden;
         }
 
-        /* ── Toolbar ───────────────────────────── */
         .toolbar {
             display: flex; align-items: center;
             justify-content: space-between;
@@ -180,7 +232,6 @@ function buildQueryString($page, $search, $per_page) {
             font-size: .76rem; font-weight: 700; color: var(--blue);
         }
 
-        /* ── Search ────────────────────────────── */
         .search-wrapper { position: relative; }
         .search-wrapper input {
             height: 34px; width: 260px;
@@ -204,7 +255,6 @@ function buildQueryString($page, $search, $per_page) {
             transform: translateY(-50%); display: none;
         }
 
-        /* ── Per page select ───────────────────── */
         .sel-pp {
             height: 34px; padding: 0 28px 0 10px;
             border: 1.5px solid var(--border); border-radius: var(--rs);
@@ -225,6 +275,7 @@ function buildQueryString($page, $search, $per_page) {
             white-space: nowrap; text-align: left;
         }
         .pos-tbl thead th:first-child { padding-left: 18px; }
+        .pos-tbl thead th.col-actions { text-align: center; width: 90px; }
         .pos-tbl tbody td {
             padding: 10px 14px;
             font-size: .875rem; color: var(--t2);
@@ -234,6 +285,32 @@ function buildQueryString($page, $search, $per_page) {
         .pos-tbl tbody td:first-child { padding-left: 18px; }
         .pos-tbl tbody tr:last-child td { border-bottom: none; }
         .pos-tbl tbody tr:hover td { background: #f8faff; }
+
+        /* Actions cell */
+        .td-actions {
+            text-align: center;
+            white-space: nowrap;
+        }
+        .action-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 30px; height: 30px;
+            border-radius: var(--rs);
+            border: 1.5px solid var(--border);
+            background: var(--surface);
+            color: var(--t3);
+            font-size: .75rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all .15s;
+        }
+        .action-btn:hover { text-decoration: none; }
+        .action-btn.edit:hover  {
+            background: var(--blue-bg); border-color: var(--blue-b); color: var(--blue);
+        }
+        .action-btn.del:hover  {
+            background: var(--red-bg); border-color: var(--red-b); color: var(--red);
+        }
+        .action-sep { display: inline-block; width: 4px; }
 
         .id-badge {
             display: inline-flex; align-items: center;
@@ -252,7 +329,6 @@ function buildQueryString($page, $search, $per_page) {
         }
         .text-dim { color: var(--t4); }
 
-        /* ── Info bar under toolbar ─────────────── */
         .info-bar {
             display: flex; align-items: center;
             justify-content: space-between;
@@ -274,7 +350,6 @@ function buildQueryString($page, $search, $per_page) {
         }
         .clear-link:hover { text-decoration: underline; color: var(--red); }
 
-        /* ── Empty state ───────────────────────── */
         .empty-state {
             text-align: center; padding: 56px 20px; color: var(--t4);
         }
@@ -284,7 +359,6 @@ function buildQueryString($page, $search, $per_page) {
         }
         .empty-state p { font-size: .9rem; margin: 0 0 16px; }
 
-        /* ── Pagination ────────────────────────── */
         .pager {
             display: flex; align-items: center;
             justify-content: space-between;
@@ -306,7 +380,79 @@ function buildQueryString($page, $search, $per_page) {
         .pager-btn.active  { background: var(--blue); border-color: var(--blue); color: #fff; pointer-events: none; }
         .pager-btn.disabled{ opacity: .35; pointer-events: none; }
 
-        /* ── Responsive ────────────────────────── */
+        /* ── Delete Modal ──────────────────────── */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,.35);
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,.15);
+            width: 360px; max-width: calc(100vw - 32px);
+            padding: 28px 24px 22px;
+            animation: modal-in .18s ease;
+        }
+        @keyframes modal-in {
+            from { transform: scale(.93) translateY(-8px); opacity: 0; }
+            to   { transform: scale(1)  translateY(0);     opacity: 1; }
+        }
+        .modal-icon {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: var(--red-bg); border: 1px solid var(--red-b);
+            display: flex; align-items: center; justify-content: center;
+            color: var(--red); font-size: 1.1rem;
+            margin-bottom: 14px;
+        }
+        .modal-title {
+            font-size: 1rem; font-weight: 700; color: var(--t1);
+            margin-bottom: 6px;
+        }
+        .modal-body {
+            font-size: .875rem; color: var(--t3);
+            margin-bottom: 20px; line-height: 1.55;
+        }
+        .modal-body strong { color: var(--t1); }
+        .modal-footer { display: flex; gap: 8px; justify-content: flex-end; }
+        .btn-cancel {
+            height: 36px; padding: 0 18px;
+            border: 1.5px solid var(--border); border-radius: var(--rs);
+            background: var(--surface); color: var(--t2);
+            font-family: inherit; font-size: .875rem; font-weight: 600;
+            cursor: pointer; transition: all .15s;
+        }
+        .btn-cancel:hover { background: var(--s2); border-color: #9ca3af; }
+        .btn-del-confirm {
+            height: 36px; padding: 0 18px;
+            border: none; border-radius: var(--rs);
+            background: var(--red); color: #fff;
+            font-family: inherit; font-size: .875rem; font-weight: 600;
+            cursor: pointer; transition: background .15s;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .btn-del-confirm:hover { background: #b91c1c; }
+
+        /* ── Edit modal fields ─────────────────── */
+        .field-label {
+            display: block; font-size: .75rem; font-weight: 600;
+            color: var(--t3); margin-bottom: 5px; letter-spacing: .02em;
+        }
+        .field-input {
+            width: 100%; height: 36px; padding: 0 11px;
+            border: 1.5px solid var(--border); border-radius: var(--rs);
+            font-family: inherit; font-size: .875rem; color: var(--t1);
+            background: var(--surface); outline: none;
+            transition: border-color .15s, box-shadow .15s;
+        }
+        .field-input:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+        }
+
         @media (max-width: 991.98px) {
             .page-shell { margin-left: 0; }
             .top-bar    { top: 52px; }
@@ -316,6 +462,121 @@ function buildQueryString($page, $search, $per_page) {
     </style>
 </head>
 <body>
+
+<!-- Add Customer Modal -->
+<div class="modal-overlay" id="addModal">
+    <div class="modal-box" style="width:440px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div class="modal-icon" style="margin:0;background:var(--green-bg);border-color:var(--green-b);color:var(--green);width:36px;height:36px;font-size:.9rem;flex-shrink:0;">
+                    <i class="fas fa-user-plus"></i>
+                </div>
+                <div>
+                    <div class="modal-title" style="margin:0;">New Customer</div>
+                    <div style="font-size:.76rem;color:var(--t4);margin-top:1px;">Fill in the details below</div>
+                </div>
+            </div>
+            <button onclick="closeAddModal()" style="background:none;border:none;cursor:pointer;color:var(--t4);font-size:.95rem;padding:4px;line-height:1;" title="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form method="POST" id="addForm">
+            <div style="display:flex;flex-direction:column;gap:13px;margin-bottom:20px;">
+                <div>
+                    <label class="field-label">Name <span style="color:var(--red);">*</span></label>
+                    <input type="text" name="add_name" id="addName" class="field-input" placeholder="Customer name" required>
+                </div>
+                <div>
+                    <label class="field-label">Phone</label>
+                    <input type="text" name="add_phone" id="addPhone" class="field-input" placeholder="Phone number">
+                </div>
+                <div>
+                    <label class="field-label">Address</label>
+                    <input type="text" name="add_address" id="addAddress" class="field-input" placeholder="Address">
+                </div>
+                <div>
+                    <label class="field-label">Manufacturer</label>
+                    <input type="text" name="add_manufacturer" id="addManufacturer" class="field-input" placeholder="Manufacturer (optional)">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+                <button type="submit" class="btn-del-confirm" style="background:var(--green);">
+                    <i class="fas fa-user-plus" style="font-size:.7rem;"></i> Add Customer
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Customer Modal -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal-box" style="width:440px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <div class="modal-icon" style="margin:0;background:var(--blue-bg);border-color:var(--blue-b);color:var(--blue);width:36px;height:36px;font-size:.9rem;flex-shrink:0;">
+                    <i class="fas fa-pen"></i>
+                </div>
+                <div>
+                    <div class="modal-title" style="margin:0;">Edit Customer</div>
+                    <div style="font-size:.76rem;color:var(--t4);margin-top:1px;" id="editModalId"></div>
+                </div>
+            </div>
+            <button onclick="closeEditModal()" style="background:none;border:none;cursor:pointer;color:var(--t4);font-size:.95rem;padding:4px;line-height:1;" title="Close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <form method="POST" id="editForm">
+            <input type="hidden" name="edit_id" id="editIdInput">
+            <div style="display:flex;flex-direction:column;gap:13px;margin-bottom:20px;">
+                <div>
+                    <label class="field-label">Name</label>
+                    <input type="text" name="edit_name" id="editName" class="field-input" placeholder="Customer name" required>
+                </div>
+                <div>
+                    <label class="field-label">Phone</label>
+                    <input type="text" name="edit_phone" id="editPhone" class="field-input" placeholder="Phone number">
+                </div>
+                <div>
+                    <label class="field-label">Address</label>
+                    <input type="text" name="edit_address" id="editAddress" class="field-input" placeholder="Address">
+                </div>
+                <div>
+                    <label class="field-label">Manufacturer</label>
+                    <input type="text" name="edit_manufacturer" id="editManufacturer" class="field-input" placeholder="Manufacturer (optional)">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+                <button type="submit" class="btn-del-confirm" style="background:var(--blue);">
+                    <i class="fas fa-check" style="font-size:.7rem;"></i> Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal-box">
+        <div class="modal-icon"><i class="fas fa-trash-can"></i></div>
+        <div class="modal-title">Delete Customer?</div>
+        <div class="modal-body">
+            You are about to delete <strong id="modalCustomerName"></strong>
+            <span style="color:var(--t4);font-size:.8rem;display:block;margin-top:4px;" id="modalCustomerId"></span>
+            This action cannot be undone.
+        </div>
+        <div class="modal-footer">
+            <button class="btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+            <form method="POST" id="deleteForm" style="margin:0;">
+                <input type="hidden" name="delete_id" id="deleteIdInput">
+                <button type="submit" class="btn-del-confirm">
+                    <i class="fas fa-trash-can" style="font-size:.7rem;"></i> Delete
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
 
 <div class="page-shell">
 
@@ -327,9 +588,9 @@ function buildQueryString($page, $search, $per_page) {
             <div class="tb-sub">View and manage customer records</div>
         </div>
         <div class="tb-right">
-            <a href="create_customer.php" class="btn-pos btn-green">
+            <button type="button" class="btn-pos btn-green" onclick="openAddModal()">
                 <i class="fas fa-user-plus" style="font-size:.65rem;"></i> New Customer
-            </a>
+            </button>
         </div>
     </header>
 
@@ -407,13 +668,17 @@ function buildQueryString($page, $search, $per_page) {
                             <th>Phone</th>
                             <th>Address</th>
                             <th>Manufacturer</th>
+                            <th class="col-actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="customerTableBody">
-                        <?php while ($row = mysqli_fetch_assoc($result)): ?>
+                        <?php while ($row = mysqli_fetch_assoc($result)):
+                            $eid  = htmlspecialchars($row['id']);
+                            $name = htmlspecialchars($row['name']);
+                        ?>
                         <tr>
-                            <td><span class="id-badge"><?= htmlspecialchars($row['id']) ?></span></td>
-                            <td><span class="cust-name"><?= htmlspecialchars($row['name']) ?></span></td>
+                            <td><span class="id-badge"><?= $eid ?></span></td>
+                            <td><span class="cust-name"><?= $name ?></span></td>
                             <td><span class="cust-phone"><?= htmlspecialchars($row['phone']) ?></span></td>
                             <td class="<?= empty($row['address']) || $row['address']==='N/A' ? 'text-dim' : '' ?>">
                                 <?= htmlspecialchars($row['address'] ?? 'N/A') ?>
@@ -424,6 +689,21 @@ function buildQueryString($page, $search, $per_page) {
                                 <?php else: ?>
                                     <span class="text-dim">N/A</span>
                                 <?php endif; ?>
+                            </td>
+                            <td class="td-actions">
+                                <button type="button"
+                                        class="action-btn edit"
+                                        title="Edit Customer"
+                                        onclick="openEditModal('<?= addslashes($eid) ?>', '<?= addslashes($name) ?>', '<?= addslashes(htmlspecialchars($row['phone'])) ?>', '<?= addslashes(htmlspecialchars($row['address'] ?? '')) ?>', '<?= addslashes(htmlspecialchars($row['manufacturer'] ?? '')) ?>')">
+                                    <i class="fas fa-pen"></i>
+                                </button>
+                                <span class="action-sep"></span>
+                                <button type="button"
+                                        class="action-btn del"
+                                        title="Delete Customer"
+                                        onclick="confirmDelete('<?= addslashes($eid) ?>', '<?= addslashes($name) ?>')">
+                                    <i class="fas fa-trash-can"></i>
+                                </button>
                             </td>
                         </tr>
                         <?php endwhile; ?>
@@ -488,7 +768,57 @@ function buildQueryString($page, $search, $per_page) {
 </div><!-- /page-shell -->
 
 <script>
-// Real-time search functionality — logic identical to original
+// ── Add modal ───────────────────────────────────────────
+function openAddModal() {
+    document.getElementById('addForm').reset();
+    document.getElementById('addModal').classList.add('active');
+    setTimeout(() => document.getElementById('addName').focus(), 80);
+}
+function closeAddModal() {
+    document.getElementById('addModal').classList.remove('active');
+}
+document.getElementById('addModal').addEventListener('click', function(e) {
+    if (e.target === this) closeAddModal();
+});
+
+// ── Edit modal ──────────────────────────────────────────
+function openEditModal(id, name, phone, address, manufacturer) {
+    document.getElementById('editIdInput').value      = id;
+    document.getElementById('editModalId').textContent = 'ID: ' + id;
+    document.getElementById('editName').value         = name;
+    document.getElementById('editPhone').value        = phone;
+    document.getElementById('editAddress').value      = address === 'N/A' ? '' : address;
+    document.getElementById('editManufacturer').value = manufacturer;
+    document.getElementById('editModal').classList.add('active');
+    setTimeout(() => document.getElementById('editName').focus(), 80);
+}
+function closeEditModal() {
+    document.getElementById('editModal').classList.remove('active');
+}
+document.getElementById('editModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
+});
+
+// ── Delete modal ────────────────────────────────────────
+function confirmDelete(id, name) {
+    document.getElementById('modalCustomerName').textContent = name;
+    document.getElementById('modalCustomerId').textContent   = 'ID: ' + id;
+    document.getElementById('deleteIdInput').value           = id;
+    document.getElementById('deleteModal').classList.add('active');
+}
+function closeDeleteModal() {
+    document.getElementById('deleteModal').classList.remove('active');
+}
+// Close on backdrop click
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) closeDeleteModal();
+});
+// Close on Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { closeAddModal(); closeDeleteModal(); closeEditModal(); }
+});
+
+// ── Real-time search ────────────────────────────────────
 (function() {
     const searchInput   = document.getElementById('searchInput');
     const searchLoading = document.getElementById('searchLoading');
