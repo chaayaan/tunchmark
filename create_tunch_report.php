@@ -320,12 +320,12 @@ if (isset($_GET['report_id'])) {
         .weight-conversion{font-size:11px;color:#333;font-weight:600;margin-left:8px;}
 
         /* QR */
-        .qr-section{width:95px;text-align:center;padding:4px;flex-shrink:0;}
+        .qr-section{width:95px;text-align:center;padding:4px 4px 0 4px;flex-shrink:0;}
         .qr-section #qrcode{display:inline-block;}
-        .qr-date{font-size:10px;color:#000;font-weight:700;line-height:1.4;margin-top:4px;white-space:nowrap;font-family:Arial,Helvetica,sans-serif;}
+        .qr-date{font-size:10px;color:#000;font-weight:700;line-height:1.4;margin-top:0;white-space:nowrap;font-family:Arial,Helvetica,sans-serif;}
 
         /* Dividers */
-        .solid-line{border:none;border-top:2px solid #000;margin:4px 0;}
+        .solid-line{border:none;border-top:2px solid #000000 !important;margin:0;color:#000000;background-color:#000000;opacity:1;}
 
         /* Purity row */
         .quality-info{
@@ -748,7 +748,7 @@ if (isset($_GET['report_id'])) {
                             <span class="info-value"><?= htmlspecialchars($report_data['order_id']) ?></span>
                         </div>
                     </td>
-                    <td style="width:28%;vertical-align:top;text-align:center;" class="qr-section">
+                    <td style="width:28%;vertical-align:top;text-align:center;padding-bottom:0;" class="qr-section">
                         <div id="qrcode" style="display:inline-block;"></div>
                         <div class="qr-date" style="text-align:center;"><?= date('d-M-y', strtotime($report_data['created_at'])) ?> <?= date('g:i A', strtotime($report_data['created_at'])) ?></div>
                     </td>
