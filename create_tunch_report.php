@@ -6,6 +6,9 @@ $GOLD_ELEMENTS   = ['Silver','Platinum','Bismuth','Copper','Palladium','Nickel',
 $SILVER_ELEMENTS = ['Copper','Palladium','Nickel','Zinc','Antimony','Indium','Cadmium','Iron','Titanium','Iridium','Tin','Ruthenium','Rhodium','Lead','Vanadium','Cobalt','Osmium','Manganese'];
 $ALL_ELEMENT_COLUMNS = ['silver','platinum','bismuth','copper','palladium','nickel','zinc','antimony','indium','cadmium','iron','titanium','iridium','tin','ruthenium','rhodium','lead','vanadium','cobalt','osmium','manganese','germanium','tungsten','gallium','rhenium'];
 
+/* Elements that Copper auto-adjusts against (all elements except copper itself) */
+$COPPER_EXCLUDED = ['copper'];
+
 $order_data     = null;
 $bill_items     = [];
 $report_created = false;
@@ -59,11 +62,38 @@ if (isset($_POST['submit_report'])) {
     $gold_val  = ($gold_raw  >= 0 && $gold_raw  <= 24) ? ($gold_raw  ?: null) : null;
     $joint_val = ($joint_raw >= 0 && $joint_raw <= 24) ? ($joint_raw ?: null) : null;
 
-    $elementCols = []; $elementVals = []; $elementTypes = '';
+    // ── Collect all element values (excluding copper — will be recalculated) ──
+    $elementValsRaw = [];
     foreach ($ALL_ELEMENT_COLUMNS as $col) {
         $raw = $_POST['elem_' . $col] ?? '';
+        $elementValsRaw[$col] = ($raw === '' || $raw === '--------') ? null : floatval($raw);
+    }
+
+    // ── PHP-side Copper recalculation & validation ──────────────────────────
+    // Copper = 100 - Gold Purity - sum of all other elements (excluding copper)
+    $goldPurityForCopper = $isSilver
+        ? (float)($silver_purity_percent ?? 0)
+        : (float)($gold_purity_percent   ?? 0);
+    $sumOthers = $goldPurityForCopper;
+    foreach ($elementValsRaw as $col => $val) {
+        if ($col === 'copper') continue;   // skip copper itself
+        if ($val !== null) $sumOthers += $val;
+    }
+    $copperCalculated = round(100.0 - $sumOthers, 6);
+
+    $php_composition_error = null;
+    if ($copperCalculated < 0) {
+        $excess = round(abs($copperCalculated), 3);
+        $php_composition_error = "Invalid composition: Copper would be {$copperCalculated}%. Total of other elements exceeds 100% by {$excess}%. Please reduce element values.";
+    }
+    // Override whatever the frontend sent for copper with the server-calculated value
+    $elementValsRaw['copper'] = ($copperCalculated >= 0) ? $copperCalculated : null;
+
+    // Build final arrays for the INSERT
+    $elementCols = []; $elementVals = []; $elementTypes = '';
+    foreach ($ALL_ELEMENT_COLUMNS as $col) {
         $elementCols[]  = "`$col`";
-        $elementVals[]  = ($raw === '' || $raw === '--------') ? null : floatval($raw);
+        $elementVals[]  = $elementValsRaw[$col];
         $elementTypes  .= 'd';
     }
 
@@ -72,29 +102,33 @@ if (isset($_POST['submit_report'])) {
     $max_size      = 2 * 1024 * 1024;
     $photo_paths   = [];
 
-    for ($n = 1; $n <= 2; $n++) {
-        $key = 'photo_' . $n;
-        if (!isset($_FILES[$key]) || $_FILES[$key]['error'] === UPLOAD_ERR_NO_FILE) continue;
+    if (!$php_composition_error) {
+        for ($n = 1; $n <= 2; $n++) {
+            $key = 'photo_' . $n;
+            if (!isset($_FILES[$key]) || $_FILES[$key]['error'] === UPLOAD_ERR_NO_FILE) continue;
 
-        $file = $_FILES[$key];
-        if ($file['error'] !== UPLOAD_ERR_OK) {
-            $upload_error = "Photo $n upload error (code {$file['error']}).";
-            break;
+            $file = $_FILES[$key];
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                $upload_error = "Photo $n upload error (code {$file['error']}).";
+                break;
+            }
+            if ($file['size'] > $max_size) {
+                $upload_error = "Photo $n exceeds 2 MB limit.";
+                break;
+            }
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime  = $finfo->file($file['tmp_name']);
+            if (!in_array($mime, $allowed_types, true)) {
+                $upload_error = "Photo $n must be JPG, PNG, or WEBP.";
+                break;
+            }
+            $photo_paths[$n] = ['tmp' => $file['tmp_name'], 'mime' => $mime];
         }
-        if ($file['size'] > $max_size) {
-            $upload_error = "Photo $n exceeds 2 MB limit.";
-            break;
-        }
-        $finfo = new finfo(FILEINFO_MIME_TYPE);
-        $mime  = $finfo->file($file['tmp_name']);
-        if (!in_array($mime, $allowed_types, true)) {
-            $upload_error = "Photo $n must be JPG, PNG, or WEBP.";
-            break;
-        }
-        $photo_paths[$n] = ['tmp' => $file['tmp_name'], 'mime' => $mime];
     }
 
-    if ($upload_error) {
+    // ── Re-fetch order/items for error redisplay ──────────────────────────
+    $needsRedisplay = $php_composition_error || $upload_error;
+    if ($needsRedisplay) {
         $stmt = mysqli_prepare($conn, "SELECT order_id, customer_name FROM orders WHERE order_id = ?");
         mysqli_stmt_bind_param($stmt, "i", $order_id);
         mysqli_stmt_execute($stmt);
@@ -109,6 +143,8 @@ if (isset($_POST['submit_report'])) {
         $result = mysqli_stmt_get_result($stmt);
         while ($row = mysqli_fetch_assoc($result)) $bill_items[] = $row;
         mysqli_stmt_close($stmt);
+        // Carry $php_composition_error or $upload_error into the template
+        if ($php_composition_error) $upload_error = $php_composition_error;
     } else {
         $sql = "INSERT INTO `customer_reports`
             (order_id, customer_name, item_name, service_name, weight,
@@ -212,6 +248,7 @@ if (isset($_GET['report_id'])) {
         .btn-ghost:hover{background:var(--s2);border-color:#9ca3af;color:var(--t1);}
         .btn-blue{background:var(--blue);color:#fff;} .btn-blue:hover{background:#1d4ed8;}
         .btn-green{background:var(--green);color:#fff;} .btn-green:hover{background:#047857;}
+        .btn-green:disabled{background:#6b7280;cursor:not-allowed;opacity:.7;}
         .btn-amber{background:var(--amber);color:#fff;} .btn-amber:hover{background:#b45309;}
         .btn-violet{background:var(--violet);color:#fff;} .btn-violet:hover{background:#6d28d9;}
 
@@ -235,6 +272,7 @@ if (isset($_GET['report_id'])) {
         .si-bl{background:var(--blue-bg);color:var(--blue);}
         .si-am{background:var(--amber-bg);color:var(--amber);}
         .si-gr{background:var(--green-bg);color:var(--green);}
+        .si-rd{background:var(--red-bg);color:var(--red);}
         .sec-title{font-size:.875rem;font-weight:700;color:var(--t1);}
         .sec-body{padding:18px;}
         .sec-title-note{margin-left:auto;font-size:.75rem;color:var(--amber);font-weight:600;}
@@ -244,6 +282,7 @@ if (isset($_GET['report_id'])) {
         .pos-alert.danger{background:var(--red-bg);border:1px solid var(--red-b);border-left:3px solid var(--red);color:#991b1b;}
         .pos-alert.info{background:var(--blue-bg);border:1px solid var(--blue-b);border-left:3px solid var(--blue);color:#1e40af;}
         .pos-alert.amber{background:var(--amber-bg);border:1px solid var(--amber-b);border-left:3px solid var(--amber);color:#92400e;}
+        .pos-alert.success{background:var(--green-bg);border:1px solid var(--green-b);border-left:3px solid var(--green);color:#065f46;}
 
         /* Labels & inputs */
         .lbl{display:block;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:5px;}
@@ -253,6 +292,10 @@ if (isset($_GET['report_id'])) {
         .fc.editable{background:var(--amber-bg);border-color:var(--amber-b);}
         .fc.editable:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(217,119,6,.1);}
         textarea.fc{height:auto;padding:8px 10px;resize:vertical;}
+
+        /* Copper field states */
+        .fc.copper-auto{background:#eff6ff;border-color:#bfdbfe;color:#1e40af;font-family:'DM Mono',monospace;}
+        .fc.copper-error{background:var(--red-bg) !important;border-color:var(--red) !important;color:var(--red) !important;}
 
         .fetch-row{display:flex;gap:10px;align-items:flex-end;}
         .form-actions{display:flex;justify-content:flex-end;padding:14px 18px;background:var(--s2);border-top:1px solid var(--border);}
@@ -270,6 +313,22 @@ if (isset($_GET['report_id'])) {
         /* XRF */
         .xrf-textarea{font-family:'DM Mono',monospace;font-size:12px;line-height:1.6;}
         .parse-btn{margin-top:8px;}
+
+        /* ── Composition progress bar ── */
+        .comp-progress-wrap{padding:10px 18px 0;display:flex;flex-direction:column;gap:6px;}
+        .comp-progress-header{display:flex;align-items:center;justify-content:space-between;}
+        .comp-progress-label{font-size:.78rem;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em;}
+        .comp-progress-pct{font-size:.82rem;font-weight:700;font-family:'DM Mono',monospace;}
+        .comp-progress-bar-track{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;border:1px solid var(--border);}
+        .comp-progress-bar-fill{height:100%;border-radius:4px;transition:width .2s ease,background-color .2s ease;}
+
+        /* Karat live display */
+        .karat-live-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:.78rem;font-weight:700;background:var(--green-bg);border:1px solid var(--green-b);color:#065f46;font-family:'DM Mono',monospace;transition:all .2s;}
+        .karat-live-badge.hidden{opacity:0;pointer-events:none;}
+
+        /* Composition error banner */
+        .comp-error-banner{display:none;margin:0 18px 10px;padding:9px 14px;background:var(--red-bg);border:1px solid var(--red-b);border-left:3px solid var(--red);border-radius:var(--rs);font-size:.8125rem;color:#991b1b;font-weight:500;}
+        .comp-error-banner.visible{display:flex;gap:8px;align-items:flex-start;}
 
         /* ── Drag & drop photo zones ── */
         .dz-wrap{display:flex;flex-direction:column;gap:6px;}
@@ -291,25 +350,9 @@ if (isset($_GET['report_id'])) {
         /* ── Report styles (Arial throughout) ── */
         .report-wrap{padding:20px 22px 60px;display:flex;flex-direction:column;gap:14px;max-width:860px;}
         .tunch-preview{width:auto;max-width:700px;padding:0 30px;background:white;border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;}
-
-        /* tunch-container: watermark + Arial base font */
-        .tunch-container{
-            padding:6px 20px 10px;
-            background:white;
-            position:relative;
-            font-family:Arial,Helvetica,sans-serif;
-        }
-        .tunch-container::before{
-            content:'';position:absolute;top:50%;left:50%;
-            transform:translate(-50%,-50%) rotate(-25deg);
-            width:200px;height:200px;
-            background-image:url('Varifiedstamp.png');
-            background-size:contain;background-repeat:no-repeat;background-position:center;
-            opacity:0.2;z-index:1;pointer-events:none;
-        }
+        .tunch-container{padding:6px 20px 10px;background:white;position:relative;font-family:Arial,Helvetica,sans-serif;}
+        .tunch-container::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-25deg);width:200px;height:200px;background-image:url('Varifiedstamp.png');background-size:contain;background-repeat:no-repeat;background-position:center;opacity:0.2;z-index:1;pointer-events:none;}
         .tunch-container > *{position:relative;z-index:2;}
-
-        /* Customer info */
         .report-header{display:flex;justify-content:space-between;align-items:flex-start;}
         .customer-info{flex:1;}
         .customer-info-line{margin:0;padding:0;font-size:13px;line-height:1.7;display:flex;color:#000;font-weight:600;font-family:Arial,Helvetica,sans-serif;}
@@ -318,63 +361,30 @@ if (isset($_GET['report_id'])) {
         .info-colon{display:inline-block;width:12px;text-align:center;}
         .info-value{flex:1;font-weight:600;}
         .weight-conversion{font-size:11px;color:#333;font-weight:600;margin-left:8px;}
-
-        /* QR */
         .qr-section{width:95px;text-align:center;padding:4px 4px 0 4px;flex-shrink:0;}
         .qr-section #qrcode{display:inline-block;}
         .qr-date{font-size:10px;color:#000;font-weight:700;line-height:1.4;margin-top:0;white-space:nowrap;font-family:Arial,Helvetica,sans-serif;}
-
-        /* Dividers */
         .solid-line{border:none;border-top:2px solid #000000 !important;margin:0;color:#000000;background-color:#000000;opacity:1;}
-
-        /* Purity row */
-        .quality-info{
-            font-size:21px;font-weight:700;
-            margin:3px 0;line-height:1.4;
-            display:flex;justify-content:space-around;flex-wrap:wrap;gap:16px;
-            color:#000;font-family:Arial,Helvetica,sans-serif;
-            text-align:center;
-        }
+        .quality-info{font-size:21px;font-weight:700;margin:3px 0;line-height:1.4;display:flex;justify-content:space-around;flex-wrap:wrap;gap:16px;color:#000;font-family:Arial,Helvetica,sans-serif;text-align:center;}
         .quality-info span{white-space:nowrap;}
-
-        /* Composition table */
         .composition-table{width:100%;margin:2px 0 0;font-size:11px;line-height:1.2;border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;}
         .composition-table td{padding:1px 4px;font-weight:600;vertical-align:top;}
         .composition-table td.element-name{text-align:left;padding-right:2px;}
         .composition-table td.element-colon{text-align:center;padding:1px 2px;}
         .composition-table td.element-value{text-align:left;padding-left:2px;padding-right:12px;}
-
-        /* NB note — no bottom margin */
         .report-note{font-size:10px;line-height:1.35;margin:2px 0 0;font-weight:600;color:#000;font-family:Arial,Helvetica,sans-serif;}
-
-        /* Bottom section */
         .bottom-section{width:100%;border-collapse:collapse;margin-top:5px;}
         .bottom-section td{padding:0;vertical-align:bottom;}
         .photo-cell{width:66.66%;padding-right:8px;vertical-align:bottom;}
         .right-cell{width:33.33%;padding-left:8px;vertical-align:top;}
-
-        /* Photos */
         .report-photos{display:flex;gap:6px;flex-wrap:wrap;}
         .report-photos img{width:138px;height:100px;object-fit:cover;border-radius:3px;border:1px solid #ddd;}
-
-        /* Gold + Joint same line */
-        .gold-joint-row{
-            font-size:11px;font-weight:700;color:#000;
-            font-family:Arial,Helvetica,sans-serif;
-            display:flex;justify-content:flex-end;gap:16px;
-            flex-wrap:wrap;padding-top:2px;
-        }
+        .gold-joint-row{font-size:11px;font-weight:700;color:#000;font-family:Arial,Helvetica,sans-serif;display:flex;justify-content:flex-end;gap:16px;flex-wrap:wrap;padding-top:2px;}
         .gold-joint-row span{white-space:nowrap;}
-
-        /* Signature */
         .sig-wrap{margin-top:auto;padding-top:4px;}
         .sig-line-inner{border-top:1px solid #000;padding-top:3px;text-align:center;}
         .sig-text{font-size:10px;font-weight:700;color:#000;letter-spacing:.03em;font-family:Arial,Helvetica,sans-serif;}
-
-        /* right-cell inner flex */
         .right-cell-inner{display:flex;flex-direction:column;justify-content:space-between;min-height:110px;}
-
-        /* Actions */
         .report-actions{display:flex;align-items:center;justify-content:center;gap:10px;padding:16px 18px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);flex-wrap:wrap;}
 
         @media(max-width:991.98px){.page-shell{margin-left:0;}.top-bar{top:52px;}.col-divider{border-left:none;border-top:2px solid var(--border);padding-top:14px;margin-top:0;}}
@@ -553,21 +563,48 @@ if (isset($_GET['report_id'])) {
         <div class="sec-hd">
             <span class="sec-ico si-vi"><i class="fas fa-flask"></i></span>
             <span class="sec-title">Step 5 — Testing Results</span>
+            <div style="margin-left:auto;">
+                <!-- Live karat badge -->
+                <span class="karat-live-badge hidden" id="karatLiveBadge">
+                    <i class="fas fa-gem" style="font-size:.6rem;"></i>
+                    <span id="karatLiveText">0.00K</span>
+                </span>
+            </div>
         </div>
+
+        <!-- Composition progress bar (inside sec, above sec-body) -->
+        <div class="comp-progress-wrap">
+            <div class="comp-progress-header">
+                <span class="comp-progress-label">Composition total (excl. Gold &amp; Joint)</span>
+                <span class="comp-progress-pct" id="compProgressPct" style="color:var(--t3);">0.000%</span>
+            </div>
+            <div class="comp-progress-bar-track">
+                <div class="comp-progress-bar-fill" id="compProgressFill" style="width:0%;background:var(--amber);"></div>
+            </div>
+        </div>
+
+        <!-- Composition error banner -->
+        <div class="comp-error-banner" id="compErrorBanner">
+            <i class="fas fa-triangle-exclamation" style="font-size:.9rem;flex-shrink:0;margin-top:1px;"></i>
+            <span id="compErrorMsg">Composition error</span>
+        </div>
+
         <div class="sec-body" style="display:flex;flex-direction:column;gap:14px;">
 
             <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--violet-bg);border:1px solid #ddd6fe;border-radius:7px;">
                 <span style="font-size:.78rem;font-weight:700;color:var(--violet);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;" id="purityLabel">Gold Purity</span>
                 <input type="number" name="purity_percent" id="purity_percent" class="fc" form="reportForm"
                        step="0.001" min="0" max="100" placeholder="0.000"
+                       oninput="updateKaratFromPurity(); updateComposition();"
                        style="font-family:'DM Mono',monospace;height:30px;padding:0 6px;flex:1;">
                 <span style="font-size:.82rem;color:var(--t2);white-space:nowrap;">Karat</span>
-                <input type="number" name="karat" id="karat" class="fc" form="reportForm"
+                <input type="number" name="karat" id="karat" class="fc copper-auto" form="reportForm"
                        step="0.01" min="0" max="24" placeholder="0.00"
-                       style="font-family:'DM Mono',monospace;height:30px;padding:0 6px;width:80px;">
+                       readonly tabindex="-1"
+                       style="font-family:'DM Mono',monospace;height:30px;padding:0 6px;width:80px;" title="Auto-calculated from Gold Purity">
             </div>
 
-            <table style="width:100%;border-collapse:collapse;">
+            <table style="width:100%;border-collapse:collapse;" id="elementsTable">
             <?php
             $elemOrder = ['silver','copper','zinc','cadmium','iridium','rhodium','cobalt',
                           'germanium','palladium','platinum','iron','tin','lead','gallium',
@@ -577,13 +614,19 @@ if (isset($_GET['report_id'])) {
             foreach ($rows as $row):
             ?>
             <tr>
-                <?php foreach ($row as $el): ?>
+                <?php foreach ($row as $el): $isCopper = ($el === 'copper'); ?>
                 <td style="padding:2px 4px;white-space:nowrap;">
                     <div style="display:flex;align-items:center;gap:4px;">
-                        <span style="font-size:.75rem;font-weight:600;color:var(--t2);min-width:68px;"><?= ucfirst($el) ?></span>
+                        <span style="font-size:.75rem;font-weight:600;color:var(--t2);min-width:68px;">
+                            <?= ucfirst($el) ?>
+                            <?php if ($isCopper): ?>
+                            <span style="font-size:.6rem;color:var(--blue);font-weight:700;" title="Auto-calculated">●auto</span>
+                            <?php endif; ?>
+                        </span>
                         <input type="number" name="elem_<?= $el ?>" id="elem_<?= $el ?>"
-                               class="fc" form="reportForm"
+                               class="fc<?= $isCopper ? ' copper-auto' : '' ?>" form="reportForm"
                                step="0.001" min="0" max="100" placeholder="--------"
+                               <?= $isCopper ? 'readonly tabindex="-1"' : 'oninput="updateComposition()"' ?>
                                style="font-family:'DM Mono',monospace;height:30px;padding:0 6px;font-size:.78rem;">
                     </div>
                 </td>
@@ -673,7 +716,7 @@ if (isset($_GET['report_id'])) {
             </div>
         </div>
         <div class="form-actions">
-            <button type="submit" name="submit_report" form="reportForm"
+            <button type="submit" name="submit_report" id="submitBtn" form="reportForm"
                     class="btn-pos btn-green" style="height:38px;font-size:.9rem;">
                 <i class="fas fa-file-circle-check" style="font-size:.7rem;"></i> Generate Tunch Report
             </button>
@@ -730,7 +773,6 @@ if (isset($_GET['report_id'])) {
     <div class="tunch-preview">
         <div class="tunch-container" id="reportPreview">
 
-            <!-- ── Section 1: Customer Info ── -->
             <table style="width:100%;border-collapse:collapse;margin-bottom:0;">
                 <tr>
                     <td style="width:72%;vertical-align:top;">
@@ -755,7 +797,6 @@ if (isset($_GET['report_id'])) {
                 </tr>
             </table>
 
-            <!-- ── Section 2: Gold Purity ── -->
             <hr class="solid-line">
             <div class="quality-info">
                 <span><?= $purityLabel ?> : <?= $purityValue !== null ? rtrim(rtrim(number_format((float)$purityValue, 2), '0'), '.') : 'N/A' ?>%</span>
@@ -763,7 +804,6 @@ if (isset($_GET['report_id'])) {
             </div>
             <hr class="solid-line">
 
-            <!-- ── Section 3: Element Composition ── -->
             <?php if (!empty($elements)): ?>
             <table class="composition-table">
                 <?php foreach (array_chunk($elements, 3) as $row): ?>
@@ -779,13 +819,10 @@ if (isset($_GET['report_id'])) {
             </table>
             <?php endif; ?>
 
-            <!-- NB note — directly after composition, no gap -->
             <div class="report-note">NB:- <?= htmlspecialchars($nbNote) ?></div>
 
-            <!-- ── Section 4: Bottom ── -->
             <table class="bottom-section">
                 <tr>
-                    <!-- LEFT: photos (8 cols) -->
                     <td class="photo-cell">
                         <?php if (!empty($report_images)): ?>
                         <div class="report-photos">
@@ -795,10 +832,8 @@ if (isset($_GET['report_id'])) {
                         </div>
                         <?php endif; ?>
                     </td>
-                    <!-- RIGHT: gold+joint + signature (4 cols) -->
                     <td class="right-cell">
                         <div class="right-cell-inner">
-                            <!-- Gold + Joint on same line -->
                             <div class="gold-joint-row">
                                 <?php if ($goldCode !== ''): ?>
                                 <span>Gold : <?= htmlspecialchars($goldCode) ?></span>
@@ -807,7 +842,6 @@ if (isset($_GET['report_id'])) {
                                 <span>Joint : <?= htmlspecialchars($jointCode) ?></span>
                                 <?php endif; ?>
                             </div>
-                            <!-- Authorized Signature -->
                             <div class="sig-wrap">
                                 <div class="sig-line-inner">
                                     <span class="sig-text">Authorized Signature</span>
@@ -818,8 +852,8 @@ if (isset($_GET['report_id'])) {
                 </tr>
             </table>
 
-        </div><!-- /tunch-container -->
-    </div><!-- /tunch-preview -->
+        </div>
+    </div>
 
     <div class="report-actions">
         <button onclick="copyFullReportImage()" class="btn-pos btn-amber" style="height:38px;font-size:.875rem;">
@@ -838,7 +872,7 @@ if (isset($_GET['report_id'])) {
         <span>Click <strong>Copy Report with QR</strong>, then open MS Word and press <strong>Ctrl+V</strong> to paste.</span>
     </div>
 
-</div><!-- /report-wrap -->
+</div>
 
 <script>
     function convertGramToVoriAna(gram) {
@@ -874,19 +908,153 @@ if (isset($_GET['report_id'])) {
 </div><!-- /page-shell -->
 
 <script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Element lists (mirror PHP)
+// ─────────────────────────────────────────────────────────────────────────────
 const GOLD_ELEMENTS   = <?= json_encode($GOLD_ELEMENTS) ?>;
 const SILVER_ELEMENTS = <?= json_encode($SILVER_ELEMENTS) ?>;
 const billItems       = <?= isset($bill_items) ? json_encode($bill_items) : '[]' ?>;
 
+// All element column names (excluding copper — it is auto-calculated)
+const ALL_ELEM_COLS = ['silver','platinum','bismuth','palladium','nickel','zinc','antimony',
+                       'indium','cadmium','iron','titanium','iridium','tin','ruthenium',
+                       'rhodium','lead','vanadium','cobalt','osmium','manganese',
+                       'germanium','tungsten','gallium','rhenium'];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
 function isSilverItem(name) {
     const l = name.toLowerCase();
     return l.includes('silver') || l.includes('চাঁদি') || l.includes('rupa');
 }
-function updateMetalType() {
-    const name = document.getElementById('item_name')?.value || '';
-    const lbl  = document.getElementById('purityLabel');
-    if (lbl) lbl.textContent = isSilverItem(name) ? 'Silver Purity' : 'Gold Purity';
+function fieldVal(id) {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    const v = parseFloat(el.value);
+    return isNaN(v) ? 0 : v;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Core: updateComposition()
+// Called on every element input event. Recalculates Copper, updates progress
+// bar, shows/hides error banner, and enables/disables submit button.
+// ─────────────────────────────────────────────────────────────────────────────
+function updateComposition() {
+    // 1. Sum all non-copper elements + gold purity
+    //    Copper = 100 - Gold Purity - sum of all other elements
+    const goldPurity = fieldVal('purity_percent');
+    let sumOthers = goldPurity;
+    ALL_ELEM_COLS.forEach(col => { sumOthers += fieldVal('elem_' + col); });
+    sumOthers = parseFloat(sumOthers.toFixed(6));
+
+    // 2. Copper = 100 - (Gold Purity + sumOtherElements)
+    const copper = parseFloat((100 - sumOthers).toFixed(6));
+
+    // 3. Update Copper field UI
+    const copperInput = document.getElementById('elem_copper');
+    if (copperInput) {
+        if (copper < 0) {
+            copperInput.value = copper.toFixed(3);
+            copperInput.classList.remove('copper-auto');
+            copperInput.classList.add('copper-error');
+        } else {
+            copperInput.value = copper.toFixed(3);
+            copperInput.classList.remove('copper-error');
+            copperInput.classList.add('copper-auto');
+        }
+    }
+
+    // 4. Progress bar — total = sumOthers + max(copper, 0)
+    const total = sumOthers + Math.max(copper, 0);
+    const pct   = Math.min(total, 100);
+    const fill  = document.getElementById('compProgressFill');
+    const pctLbl = document.getElementById('compProgressPct');
+    if (fill && pctLbl) {
+        fill.style.width = pct + '%';
+        if (copper < 0) {
+            fill.style.backgroundColor = 'var(--red)';
+            pctLbl.style.color = 'var(--red)';
+        } else if (Math.abs(total - 100) < 0.001) {
+            fill.style.backgroundColor = 'var(--green)';
+            pctLbl.style.color = 'var(--green)';
+        } else {
+            fill.style.backgroundColor = 'var(--amber)';
+            pctLbl.style.color = 'var(--amber)';
+        }
+        pctLbl.textContent = total.toFixed(3) + '%';
+    }
+
+    // 5. Error banner
+    const banner = document.getElementById('compErrorBanner');
+    const msg    = document.getElementById('compErrorMsg');
+    if (copper < 0) {
+        const excess = Math.abs(copper).toFixed(3);
+        if (banner && msg) {
+            msg.textContent = `Total exceeds 100% by ${excess}%. Please reduce element values.`;
+            banner.classList.add('visible');
+        }
+    } else {
+        if (banner) banner.classList.remove('visible');
+    }
+
+    // 6. Submit button gate
+    updateSubmitState();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Karat: always derived from Gold Purity  →  Karat = (Gold% × 24) / 100
+// ─────────────────────────────────────────────────────────────────────────────
+function updateKaratFromPurity() {
+    const purity    = parseFloat(document.getElementById('purity_percent')?.value);
+    const karatInput = document.getElementById('karat');
+    const badge      = document.getElementById('karatLiveBadge');
+    const liveText   = document.getElementById('karatLiveText');
+
+    if (!isNaN(purity) && purity > 0) {
+        const karat = parseFloat(((purity * 24) / 100).toFixed(2));
+        // Always overwrite — karat is fully derived from gold purity
+        if (karatInput) karatInput.value = karat.toFixed(2);
+        if (badge && liveText) {
+            liveText.textContent = karat.toFixed(2) + 'K';
+            badge.classList.remove('hidden');
+        }
+    } else {
+        if (karatInput) karatInput.value = '';
+        if (badge) badge.classList.add('hidden');
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Submit gate: enable/disable the submit button based on composition validity
+// ─────────────────────────────────────────────────────────────────────────────
+function updateSubmitState() {
+    const submitBtn = document.getElementById('submitBtn');
+    if (!submitBtn) return;
+
+    // Check copper validity
+    const copperInput = document.getElementById('elem_copper');
+    const copperVal   = copperInput ? parseFloat(copperInput.value) : 0;
+    const isInvalid   = isNaN(copperVal) || copperVal < 0;
+
+    // Check karat range errors
+    const goldErr  = document.getElementById('gold_val_err')?.style.display  !== 'none';
+    const jointErr = document.getElementById('joint_val_err')?.style.display !== 'none';
+
+    if (isInvalid || goldErr || jointErr) {
+        submitBtn.disabled = true;
+        submitBtn.title    = isInvalid
+            ? 'Fix composition: total exceeds 100%'
+            : 'Fix karat value errors before submitting';
+    } else {
+        submitBtn.disabled = false;
+        submitBtn.title    = '';
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Karat range validator (Gold / Joint fields, 0–24)
+// ─────────────────────────────────────────────────────────────────────────────
 function validateKarat(input) {
     const val = parseFloat(input.value);
     const err = document.getElementById(input.id + '_err');
@@ -894,17 +1062,39 @@ function validateKarat(input) {
     input.style.borderColor = bad ? 'var(--red)' : '';
     input.style.background  = bad ? 'var(--red-bg)' : '';
     if (err) err.style.display = bad ? 'block' : 'none';
+    updateSubmitState();
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Metal type label (Gold Purity / Silver Purity)
+// ─────────────────────────────────────────────────────────────────────────────
+function updateMetalType() {
+    const name = document.getElementById('item_name')?.value || '';
+    const lbl  = document.getElementById('purityLabel');
+    if (lbl) lbl.textContent = isSilverItem(name) ? 'Silver Purity' : 'Gold Purity';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// XRF Auto-Extract
+// ─────────────────────────────────────────────────────────────────────────────
 function parseXRFData() {
     const input  = document.getElementById('xrf_raw').value;
     const silver = isSilverItem(document.getElementById('item_name').value);
     const pRx    = silver ? /Silver\s+Purity\s*[:\s]+([\d.]+)\s*%/i : /Gold\s+Purity\s*[:\s]+([\d.]+)\s*%/i;
     const pM     = input.match(pRx);
-    if (pM) document.getElementById('purity_percent').value = pM[1];
+    if (pM) {
+        document.getElementById('purity_percent').value = pM[1];
+        updateKaratFromPurity();
+    }
     const kM = input.match(/Karat\s*[:\s]+([\d.]+)/i);
-    if (kM) document.getElementById('karat').value = kM[1];
+    if (kM) {
+        const karatInput = document.getElementById('karat');
+        karatInput.value = kM[1];
+        karatInput.dataset.autoSet = '0'; // treat as manual after parse
+    }
     const allEls = [...new Set([...GOLD_ELEMENTS, ...SILVER_ELEMENTS])];
     allEls.forEach(el => {
+        if (el.toLowerCase() === 'copper') return; // skip — auto-calculated
         const f = document.getElementById('elem_' + el.toLowerCase());
         if (!f) return;
         const m = input.match(new RegExp(el + '\\s*[:\\s]+([\\d.]+|--------)', 'i'));
@@ -914,10 +1104,18 @@ function parseXRFData() {
     const jM = input.match(/Joint\s*[:\s]+([\d.]+)/i);
     if (gM) document.getElementById('gold_val').value  = gM[1];
     if (jM) document.getElementById('joint_val').value = jM[1];
+
+    // Recalculate copper after paste
+    updateComposition();
+
     const btn = document.querySelector('.parse-btn'), orig = btn.innerHTML;
     btn.innerHTML = '<i class="fas fa-check"></i> Extracted!'; btn.style.background = 'var(--green)';
     setTimeout(() => { btn.innerHTML = orig; btn.style.background = ''; }, 2000);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bill item selector
+// ─────────────────────────────────────────────────────────────────────────────
 function selectBillItem(i) {
     document.getElementById('bi_' + i).checked    = true;
     document.getElementById('bill_item_id').value = billItems[i].bill_item_id;
@@ -927,16 +1125,44 @@ function selectBillItem(i) {
     document.getElementById('xrf_raw').value      = '';
     document.getElementById('purity_percent').value = '';
     document.getElementById('karat').value        = '';
+    // Clear all element inputs and reset copper
+    ALL_ELEM_COLS.forEach(col => {
+        const f = document.getElementById('elem_' + col);
+        if (f) f.value = '';
+    });
+    updateComposition();
     updateMetalType();
     document.querySelectorAll('.item-card').forEach(c => c.classList.remove('selected'));
     event.currentTarget.classList.add('selected');
 }
+
 document.addEventListener('DOMContentLoaded', () => {
     const first = document.querySelector('.item-card');
     if (first) first.classList.add('selected');
     updateMetalType();
+    updateComposition(); // initialise progress bar & copper on load
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Form submit guard (belt-and-suspenders, JS layer)
+// ─────────────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('reportForm');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+        const copperInput = document.getElementById('elem_copper');
+        const copperVal   = copperInput ? parseFloat(copperInput.value) : 0;
+        if (isNaN(copperVal) || copperVal < 0) {
+            e.preventDefault();
+            document.getElementById('compErrorBanner')?.scrollIntoView({ behavior:'smooth', block:'center' });
+            return false;
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Drag & drop photo upload
+// ─────────────────────────────────────────────────────────────────────────────
 const MAX_PHOTO_SIZE = 200 * 1024;
 const ALLOWED_TYPES  = ['image/jpeg','image/jpg','image/png','image/webp'];
 function dzValidate(file) {
