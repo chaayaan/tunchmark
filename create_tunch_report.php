@@ -378,7 +378,7 @@ if (isset($_GET['report_id'])) {
         .photo-cell{width:66.66%;padding-right:8px;vertical-align:bottom;}
         .right-cell{width:33.33%;padding-left:8px;vertical-align:top;}
         .report-photos{display:flex;gap:6px;flex-wrap:wrap;}
-        .report-photos img{width:138px;height:100px;object-fit:cover;border-radius:3px;border:1px solid #ddd;}
+        .report-photos img{width:auto;height:100px;object-fit:contain;border-radius:3px;border:1px solid #ddd;}
         .gold-joint-row{font-size:11px;font-weight:700;color:#000;font-family:Arial,Helvetica,sans-serif;display:flex;justify-content:flex-end;gap:16px;flex-wrap:wrap;padding-top:2px;}
         .gold-joint-row span{white-space:nowrap;}
         .sig-wrap{margin-top:auto;padding-top:4px;}
@@ -842,6 +842,9 @@ if (isset($_GET['report_id'])) {
                                 <span>Joint : <?= htmlspecialchars($jointCode) ?></span>
                                 <?php endif; ?>
                             </div>
+                            <div id="disclaimerText" style="font-size:8px;font-weight:700;color:#dc2626;line-height:1.4;font-family:Arial,Helvetica,sans-serif;margin-top:4px;">
+                                বিঃদ্রঃ ১০০% সঠিক টোটাল টন্সের জন্য গলিয়ে টন্স করুন। কাস্টমারের চাহিদার কারণে ফলাফল ভিন্ন হতে পারে, এর দায়ভার আমাদের নয়।
+                            </div>
                             <div class="sig-wrap">
                                 <div class="sig-line-inner">
                                     <span class="sig-text">Authorized Signature</span>
@@ -856,6 +859,9 @@ if (isset($_GET['report_id'])) {
     </div>
 
     <div class="report-actions">
+        <button id="disclaimerToggleBtn" onclick="toggleDisclaimer()" class="btn-pos btn-green" style="height:38px;font-size:.875rem;">
+            <i class="fas fa-toggle-on" id="disclaimerIcon"></i> Disclaimer: ON
+        </button>
         <button onclick="copyFullReportImage()" class="btn-pos btn-amber" style="height:38px;font-size:.875rem;">
             <i class="fas fa-copy" style="font-size:.65rem;"></i> Copy Report with QR
         </button>
@@ -1191,6 +1197,26 @@ function dzClear(e, zoneId, inputId, previewId) {
     document.getElementById(inputId).value = '';
     document.getElementById(previewId).src  = '';
     document.getElementById(zoneId).classList.remove('has-file');
+}
+function toggleDisclaimer() {
+    const div  = document.getElementById('disclaimerText');
+    const btn  = document.getElementById('disclaimerToggleBtn');
+    const icon = document.getElementById('disclaimerIcon');
+    const isOn = div.style.display !== 'none';
+
+    if (isOn) {
+        div.style.display    = 'none';
+        icon.className       = 'fas fa-toggle-off';
+        btn.style.background = 'var(--t3)';
+        btn.style.border     = 'none';
+        btn.innerHTML        = '<i id="disclaimerIcon" class="fas fa-toggle-off"></i> Disclaimer: OFF';
+    } else {
+        div.style.display    = 'block';
+        icon.className       = 'fas fa-toggle-on';
+        btn.style.background = 'var(--green)';
+        btn.style.border     = 'none';
+        btn.innerHTML        = '<i id="disclaimerIcon" class="fas fa-toggle-on"></i> Disclaimer: ON';
+    }
 }
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>

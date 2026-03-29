@@ -306,7 +306,7 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
                         <!-- Left 7/12 — photo -->
                         <div style="flex:0 0 58.333%;max-width:58.333%;display:flex;align-items:flex-end;padding-right:8px;">
                             <img src="<?= htmlspecialchars($report_image) ?>" alt="Sample photo"
-                                 style="width:160px;height:105px;object-fit:cover;border-radius:4px;border:1px solid #ddd;">
+                                style="width:auto;height:105px;object-fit:contain;border-radius:4px;border:1px solid #ddd;">
                         </div>
                         <!-- Right 5/12 — authorized signature bottom-center -->
                         <div style="flex:0 0 41.667%;max-width:41.667%;display:flex;flex-direction:column;justify-content:flex-end;">
@@ -395,7 +395,7 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
                     <div style="flex:0 0 58.333%;max-width:58.333%;display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;padding-right:8px;">
                         <?php foreach ($report_images as $img_path): ?>
                         <img src="<?= htmlspecialchars($img_path) ?>" alt="Sample photo"
-                             style="width:130px;height:95px;object-fit:cover;border-radius:4px;border:1px solid #ddd;">
+                            style="width:auto;height:95px;object-fit:contain;border-radius:4px;border:1px solid #ddd;">
                         <?php endforeach; ?>
                     </div>
 

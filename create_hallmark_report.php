@@ -580,7 +580,7 @@ if (isset($_GET['report_id'])) {
                 <div style="display:table-cell;width:58.333%;vertical-align:bottom;padding:0 8px;">
                     <?php if (!empty($report_image)): ?>
                     <img src="<?= htmlspecialchars($report_image) ?>" alt="Sample photo"
-                         style="width:160px;height:105px;object-fit:cover;border-radius:4px;border:1px solid #ddd;display:block;">
+                        style="width:auto;height:105px;object-fit:contain;border-radius:4px;border:1px solid #ddd;display:block;">
                     <?php endif; ?>
                 </div>
 
