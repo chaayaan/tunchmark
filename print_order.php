@@ -288,289 +288,195 @@ function generateThermalReceiptEnglish($order, $billItems, $grandTotal, $current
 
 // ==================== FORMAT 2: A4 FORMAT - ENGLISH ====================
 function generateA4FormatEnglish($order, $billItems, $grandTotal, $currentDate, $orderId) {
-    $itemsHtml = '';
-    foreach ($billItems as $item) {
-        $weight = floatval($item['weight'] ?? 0);
-        $itemName = $item['item_name'] ?? '';
-        $serviceName = $item['service_name'] ?? '';
-        $karat = $item['karat'] ?? '';
-        
-        $itemsHtml .= '
-        <tr>
-          <td>' . htmlspecialchars($itemName) . '</td>
-          <td>' . htmlspecialchars($serviceName) . '</td>
-          <td>' . htmlspecialchars($karat) . '</td>
-          <td>' . number_format($weight, 2) . '</td>
-        </tr>';
-    }
-    
-    // Add empty rows to fill space
-    $emptyRowsNeeded = max(0, 3 - count($billItems));
-    for ($i = 0; $i < $emptyRowsNeeded; $i++) {
-        $itemsHtml .= '
-        <tr>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
-          <td>&nbsp;</td>
-        </tr>';
-    }
-    
+
     $dateOnly = date('d/m/Y');
     $timeOnly = date('h:i A');
-    
+
+    // Generate table rows
+    $itemsHtml = '';
+    foreach ($billItems as $item) {
+        $itemsHtml .= '
+        <tr>
+            <td>' . htmlspecialchars($item['item_name'] ?? '') . '</td>
+            <td>' . htmlspecialchars($item['service_name'] ?? '') . '</td>
+            <td>' . number_format(floatval($item['weight'] ?? 0), 2) . '</td>
+            <td>' . htmlspecialchars($item['karat'] ?? '') . '</td>
+            <td></td>
+        </tr>';
+    }
+
     return '
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Print Order #' . htmlspecialchars($order['order_id']) . '</title>
-    <style>
-      @page {
-        size: A4;
-        margin: 20mm;
-      }
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
-      body { 
-        font-family: Arial, sans-serif; 
-        font-size: 16px; 
-        padding: 20px;
-        width: 210mm;
-        min-height: 148.5mm;
-      }
-      .header {
-        text-align: center;
-        font-weight: bold;
-        font-size: 22px;
-        text-decoration: underline;
-        margin-bottom: 12px;
-      }
-      .customer-section {
-        margin-bottom: 12px;
-        padding-left: 20px;
-      }
-      .customer-row {
-        display: flex;
-        margin-bottom: 2px;
-        min-height: 20px;
-        align-items: center;
-      }
-      .customer-col {
-        display: flex;
-        align-items: center;
-      }
-      .customer-col.left {
-        flex: 2;
-        padding-right: 30px;
-      }
-      .customer-col.right {
-        flex: 1;
-      }
-      .customer-col.right .field-label {
-        min-width: 80px;
-      }
-      .field-label {
-        font-weight: bold;
-        min-width: 140px;
-        white-space: nowrap;
-      }
-      .field-colon {
-        margin: 0 5px 0 0;
-      }
-      .field-value {
-        flex: 1;
-      }
-      .item-section {
-        margin-top: 12px;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        border: 2px solid #000;
-      }
-      .table-header {
-        font-weight: bold;
-        font-size: 18px;
-        text-align: center;
-        padding: 4px;
-        border: 2px solid #000;
-        background-color: #fff;
-      }
-      th {
-        padding: 4px;
-        text-align: center;
-        border: 1px solid #000;
-        font-weight: bold;
-        font-size: 16px;
-        background-color: #fff;
-      }
-      td {
-        padding: 4px 6px;
-        border: 1px solid #000;
-        text-align: center;
-        min-height: 24px;
-        line-height: 1.2;
-      }
-      .footer-row {
-        display: flex;
-        border: 2px solid #000;
-        border-top: 1px solid #000;
-      }
-      .footer-cell {
-        flex: 1;
-        padding: 4px 8px;
-        font-weight: bold;
-        font-size: 16px;
-      }
-      .footer-cell:first-child {
-        border-right: 1px solid #000;
-      }
-      .note {
-        font-size: 12px;
-        margin-top: 6px;
-        line-height: 1.5;
-        padding-left: 20px;
-      }
-      .no-print {
-        display: block;
-        text-align: center;
-        margin: 20px 0;
-      }
-      @media print {
-        .no-print {
-          display: none;
-        }
-        body {
-          padding: 20mm;
-        }
-      }
-    </style>
-</head>
-<body>
-    
-    <div class="no-print">
-        <button onclick="window.print()" style="padding: 10px 20px; font-size: 14px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px;">
-            🖨️ Print Receipt
-        </button>
-        <button onclick="window.close()" style="padding: 10px 20px; font-size: 14px; cursor: pointer; background: #6c757d; color: white; border: none; border-radius: 4px; margin-left: 10px;">
-            ✖️ Close
-        </button>
-    </div>
-    
-    <div class="header">Customer Details</div>
-    
-    <div class="customer-section">
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Customer No</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">' . htmlspecialchars($order['customer_id'] ?? '') . '</span>
-        </div>
-        <div class="customer-col right">
-          <span class="field-label">Token No</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">' . htmlspecialchars($order['order_id']) . '</span>
-        </div>
-      </div>
-      
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Customer Name</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">' . htmlspecialchars($order['customer_name']) . '</span>
-        </div>
-        <div class="customer-col right">
-          <span class="field-label">Date</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">' . $dateOnly . '</span>
-        </div>
-      </div>
-      
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Mobile</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">' . htmlspecialchars($order['customer_phone']) . '</span>
-        </div>
-        <div class="customer-col right">
-          <span class="field-label">Time</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">' . $timeOnly . '</span>
-        </div>
-      </div>
-      
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Address</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">' . htmlspecialchars($order['customer_address'] ?? '') . '</span>
-        </div>
-      </div>
-      
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Manufacturer</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">' . htmlspecialchars($order['manufacturer'] ?? '') . '</span>
-        </div>
-      </div>
-      
-      <div class="customer-row">
-        <div class="customer-col left">
-          <span class="field-label">Box no</span>
-          <span class="field-colon">:</span>
-          <span class="field-value">' . htmlspecialchars($order['box_no'] ?? '') . '</span>
-        </div>
-      </div>
-    </div>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <style>
+        @page{size:A4;margin:20mm;}
 
-    <div class="item-section">
-      <table>
+        *{margin:0;padding:0;box-sizing:border-box;}
+
+        body{
+            font-family:Arial,sans-serif;
+            font-size:16px;
+            background:#e5e5e5;
+            display:flex;
+            justify-content:center;
+            padding:20px 0;
+        }
+
+        /* A4 Page Container */
+        .a4-page{
+            width:210mm;
+            min-height:297mm;
+            background:#fff;
+            padding:20mm;
+            box-shadow:0 0 10px rgba(0,0,0,0.2);
+        }
+        .header{text-align:center;font-weight:bold;font-size:22px;text-decoration:underline;margin-bottom:12px;}
+        .customer-section{margin-bottom:12px;padding-left:20px;}
+        .customer-row{display:flex;margin-bottom:2px;min-height:20px;align-items:center;}
+        .customer-col{display:flex;align-items:center;}
+        .customer-col.left{flex:2;padding-right:30px;}
+        .customer-col.right{flex:1;}
+        .customer-col.right .field-label{min-width:80px;}
+        .field-label{font-weight:bold;min-width:140px;white-space:nowrap;}
+        .field-colon{margin:0 5px 0 0;}
+        .field-value{flex:1;}
+        .item-section{margin-top:12px;}
+        table{width:100%;border-collapse:collapse;border:2px solid #000;}
+        .table-header{font-weight:bold;font-size:18px;text-align:center;padding:4px;border:2px solid #000;}
+        th{padding:4px;text-align:center;border:1px solid #000;font-weight:bold;font-size:16px;}
+        td{padding:4px 6px;border:1px solid #000;text-align:center;min-height:24px;}
+        .footer-row{display:flex;border:2px solid #000;border-top:1px solid #000;}
+        .footer-cell{flex:1;padding:4px 8px;font-weight:bold;font-size:16px;}
+        .footer-cell:first-child{border-right:1px solid #000;}
+        .note{font-size:12px;margin-top:6px;line-height:1.5;padding-left:20px;}
+
+        /* PRINT MODE */
+        @media print{
+            body{
+                background:none;
+                padding:0;
+            }
+            .a4-page{
+                box-shadow:none;
+                width:auto;
+                min-height:auto;
+                padding:20mm;
+            }
+        }
+        </style>
+        </head>
+
+        <body>
+        <div class="a4-page">
+
+        <div style="height:1in;"></div>
+
+        <div class="header">Customer Details</div>
+
+        <div class="customer-section">
+
+        <div class="customer-row">
+        <div class="customer-col left">
+        <span class="field-label">Customer No</span><span class="field-colon">:</span>
+        <span class="field-value">' . htmlspecialchars($order['customer_id'] ?? '') . '</span>
+        </div>
+        <div class="customer-col right">
+        <span class="field-label">Token No</span><span class="field-colon">:</span>
+        <span class="field-value">' . htmlspecialchars($order['order_id']) . '</span>
+        </div>
+        </div>
+
+        <div class="customer-row">
+        <div class="customer-col left">
+        <span class="field-label">Customer Name</span><span class="field-colon">:</span>
+        <span class="field-value">' . htmlspecialchars($order['customer_name']) . '</span>
+        </div>
+        <div class="customer-col right">
+        <span class="field-label">Date</span><span class="field-colon">:</span>
+        <span class="field-value">' . $dateOnly . '</span>
+        </div>
+        </div>
+
+        <div class="customer-row">
+        <div class="customer-col left">
+        <span class="field-label">Mobile</span><span class="field-colon">:</span>
+        <span class="field-value">' . htmlspecialchars($order['customer_phone']) . '</span>
+        </div>
+        <div class="customer-col right">
+        <span class="field-label">Time</span><span class="field-colon">:</span>
+        <span class="field-value">' . $timeOnly . '</span>
+        </div>
+        </div>
+
+        <div class="customer-row">
+        <div class="customer-col left">
+        <span class="field-label">Address</span><span class="field-colon">:</span>
+        <span class="field-value">' . htmlspecialchars($order['customer_address'] ?? '') . '</span>
+        </div>
+        </div>
+
+        <div class="customer-row">
+        <div class="customer-col left">
+        <span class="field-label">Manufacturer</span><span class="field-colon">:</span>
+        <span class="field-value">' . htmlspecialchars($order['manufacturer'] ?? '') . '</span>
+        </div>
+        </div>
+
+        <div class="customer-row">
+        <div class="customer-col left">
+        <span class="field-label">Box no</span><span class="field-colon">:</span>
+        <span class="field-value">' . htmlspecialchars($order['box_no'] ?? '') . '</span>
+        </div>
+        </div>
+
+        </div>
+
+        <div class="item-section">
+        <table>
         <thead>
-          <tr>
-            <th colspan="4" class="table-header">ITEM DETAILS</th>
-          </tr>
-          <tr>
-            <th>Items</th>
-            <th>Services</th>
-            <th>Marking</th>
-            <th>Weight</th>
-          </tr>
+        <tr><th colspan="5" class="table-header">ITEM DETAILS</th></tr>
+        <tr>
+        <th>Items</th>
+        <th>Services</th>
+        <th>Weight</th>
+        <th>Hallmark</th>
+        <th>Remarks</th>
+        </tr>
         </thead>
-        <tbody>
-          ' . $itemsHtml . '
-        </tbody>
-      </table>
 
-      <div class="footer-row">
+        <tbody>
+        ' . $itemsHtml . '
+        </tbody>
+        </table>
+
+        <div class="footer-row">
         <div class="footer-cell">Total Amount : ' . number_format($grandTotal, 2) . ' TK</div>
         <div class="footer-cell">Payment Status : ' . htmlspecialchars(strtoupper($order['status'])) . '</div>
-      </div>
-    </div>
+        </div>
 
-    <div class="note">
-      The jewellery/article tested at the point of soldering chemical plated jewellery will show a low or fluctuating reading.<br>
-      We are not responsible for any melting defect.<br>
-      Maximum Diff: (+/-) 0.30%.
-    </div>
+        </div>
 
-    <script>
-        window.addEventListener(\'load\', function() {
-            setTimeout(function() {
-                if (window.opener) {
-                    window.print();
-                }
-            }, 800);
-        });
-    </script>
-</body>
-</html>';
+        <div class="note">
+        The jewellery/article tested at the point of soldering chemical plated jewellery will show a low or fluctuating reading.<br>
+        We are not responsible for any melting defect.<br>
+        Maximum Diff: (+/-) 0.30%.
+        </div>
+        <script>
+            window.addEventListener(\'load\', function() {
+                setTimeout(function() {
+                    if (window.opener) {
+                        window.print();
+                    }
+                }, 800);
+            });
+        </script>
+        
+        </div>    
+        </body>
+        </html>';
 }
+
 
 // ==================== FORMAT 3: THERMAL RECEIPT (80mm) - BANGLA ====================
 function generateThermalReceiptBangla($order, $billItems, $grandTotal, $currentDate, $orderId) {
