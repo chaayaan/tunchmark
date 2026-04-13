@@ -15,13 +15,17 @@ $error = '';
 // Handle POST — PRG pattern
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $stmt = $pdo->prepare("UPDATE licenses SET branch_name=?, branch_app_link=?, license_key=?, expire_date=?, last_renew_date=?, status=? WHERE id=?");
+        $stmt = $pdo->prepare(
+            "UPDATE licenses SET branch_name=?, branch_app_link=?, license_key=?, expire_date=?, activation_date=?, last_renew=?, status=? WHERE id=?"
+        );
+        $activationDate = $_POST['activation_date'] ?: null;
         $stmt->execute([
             $_POST['branch_name'],
             $_POST['branch_app_link'],
             $_POST['license_key'],
             $_POST['expire_date'],
-            $_POST['last_renew_date'] ?: null,
+            $activationDate,
+            $activationDate,  // keep last_renew in sync when edited manually
             $_POST['status'],
             $license_id
         ]);
@@ -60,7 +64,7 @@ include 'navbar.php';
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        :root{--bg:#f1f3f6;--surface:#fff;--s2:#fafbfc;--border:#e4e7ec;--bsoft:#f0f1f3;--t1:#111827;--t2:#374151;--t3:#6b7280;--t4:#9ca3af;--blue:#2563eb;--blue-bg:#eff6ff;--blue-b:#bfdbfe;--green:#059669;--green-bg:#ecfdf5;--green-b:#a7f3d0;--amber:#d97706;--amber-bg:#fffbeb;--amber-b:#fde68a;--red:#dc2626;--red-bg:#fef2f2;--red-b:#fecaca;--violet:#7c3aed;--violet-bg:#f5f3ff;--violet-b:#ddd6fe;--r:10px;--rs:6px;--sh:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);}
+        :root{--bg:#f1f3f6;--surface:#fff;--s2:#fafbfc;--border:#e4e7ec;--bsoft:#f0f1f3;--t1:#111827;--t2:#374151;--t3:#6b7280;--t4:#9ca3af;--blue:#2563eb;--blue-bg:#eff6ff;--blue-b:#bfdbfe;--green:#059669;--green-bg:#ecfdf5;--green-b:#a7f3d0;--amber:#d97706;--amber-bg:#fffbeb;--amber-b:#fde68a;--red:#dc2626;--red-bg:#fef2f2;--red-b:#fecaca;--violet:#7c3aed;--violet-bg:#f5f3ff;--violet-b:#ddd6fe;--teal:#0891b2;--teal-bg:#ecfeff;--teal-b:#a5f3fc;--r:10px;--rs:6px;--sh:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);}
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
         body{font-family:'DM Sans',-apple-system,sans-serif;font-size:14px;background:var(--bg);color:var(--t1);-webkit-font-smoothing:antialiased;min-height:100vh;}
         .page-shell{margin-left:200px;min-height:100vh;display:flex;flex-direction:column;}
@@ -75,7 +79,6 @@ include 'navbar.php';
         .btn-amber{background:var(--amber);color:#fff;border:none;}
         .btn-amber:hover{background:#b45309;color:#fff;}
         .main{flex:1;padding:20px 22px 60px;display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start;max-width:1000px;}
-        /* Section cards */
         .sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);overflow:hidden;}
         .sec-head{display:flex;align-items:center;gap:9px;padding:11px 18px;background:var(--s2);border-bottom:1px solid var(--bsoft);}
         .sec-ico{width:26px;height:26px;border-radius:var(--rs);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
@@ -84,9 +87,9 @@ include 'navbar.php';
         .i-green{background:var(--green-bg);color:var(--green);}
         .i-red{background:var(--red-bg);color:var(--red);}
         .i-blue{background:var(--blue-bg);color:var(--blue);}
+        .i-teal{background:var(--teal-bg);color:var(--teal);}
         .sec-title{font-size:.875rem;font-weight:700;color:var(--t1);}
         .sec-body{padding:18px;}
-        /* Form */
         .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
         .lbl{display:block;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t3);margin-bottom:5px;}
         .lbl .req{color:var(--red);margin-left:2px;}
@@ -95,16 +98,13 @@ include 'navbar.php';
         select.fc{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;}
         .fc-mono{font-family:'DM Mono',monospace;letter-spacing:.04em;}
         .form-footer{display:flex;justify-content:flex-end;gap:8px;padding-top:6px;}
-        /* Error alert */
         .alert-err{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:var(--rs);font-size:.875rem;font-weight:500;background:var(--red-bg);border:1px solid var(--red-b);border-left:3px solid var(--red);color:#991b1b;margin-bottom:12px;}
-        /* Info sidebar */
         .info-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--bsoft);}
         .info-row:last-child{border-bottom:none;}
         .info-ico{width:28px;height:28px;border-radius:var(--rs);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;}
         .info-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--t4);}
         .info-val{font-size:.85rem;color:var(--t1);font-weight:500;margin-top:1px;}
         .info-val.mono{font-family:'DM Mono',monospace;}
-        /* Status pill */
         .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:.72rem;font-weight:700;}
         .pill::before{content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0;}
         .pill-active{background:var(--green-bg);color:var(--green);border:1px solid var(--green-b);}
@@ -113,7 +113,6 @@ include 'navbar.php';
         .pill-expired::before{background:var(--red);}
         .pill-suspended{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-b);}
         .pill-suspended::before{background:var(--amber);}
-        /* Days left block */
         .days-block{border-radius:var(--rs);padding:10px 14px;text-align:center;margin:0 18px 14px;}
         .days-block.ok{background:var(--green-bg);border:1px solid var(--green-b);}
         .days-block.warn{background:var(--amber-bg);border:1px solid var(--amber-b);}
@@ -180,8 +179,8 @@ include 'navbar.php';
                                 <input type="date" name="expire_date" class="fc" value="<?= htmlspecialchars($license['expire_date']) ?>" required>
                             </div>
                             <div>
-                                <label class="lbl">Last Renew Date</label>
-                                <input type="date" name="last_renew_date" class="fc" value="<?= htmlspecialchars($license['last_renew_date'] ?? '') ?>">
+                                <label class="lbl">Activation Date</label>
+                                <input type="date" name="activation_date" class="fc" value="<?= htmlspecialchars($license['activation_date'] ?? '') ?>">
                             </div>
                             <div>
                                 <label class="lbl">Status <span class="req">*</span></label>
@@ -206,13 +205,13 @@ include 'navbar.php';
         <!-- Right: Info sidebar -->
         <div style="display:flex;flex-direction:column;gap:16px;">
 
-            <!-- Days left block -->
             <?php
                 $dClass = $daysLeft < 0 ? 'exp' : ($daysLeft <= 30 ? 'warn' : 'ok');
+                $dIco   = $dClass === 'ok' ? 'green' : ($dClass === 'warn' ? 'amber' : 'red');
             ?>
             <div class="sec">
                 <div class="sec-head">
-                    <span class="sec-ico i-<?= $dClass==='ok'?'green':($dClass==='warn'?'amber':'red') ?>"><i class="fas fa-clock"></i></span>
+                    <span class="sec-ico i-<?= $dIco ?>"><i class="fas fa-clock"></i></span>
                     <span class="sec-title">Expiry Status</span>
                 </div>
                 <div style="padding-top:14px;">
@@ -222,22 +221,31 @@ include 'navbar.php';
                     </div>
                 </div>
                 <div class="sec-body" style="padding-top:4px;">
+                    <?php if (!empty($license['activation_date'])): ?>
                     <div class="info-row">
-                        <div class="info-ico i-<?= $dClass==='ok'?'green':($dClass==='warn'?'amber':'red') ?>" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;"><i class="fas fa-calendar-xmark"></i></div>
+                        <div class="info-ico i-teal" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;"><i class="fas fa-calendar-check"></i></div>
+                        <div>
+                            <div class="info-label">Activation Date</div>
+                            <div class="info-val mono"><?= htmlspecialchars($license['activation_date']) ?></div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <?php if (!empty($license['last_renew'])): ?>
+                    <div class="info-row">
+                        <div class="info-ico i-green" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;"><i class="fas fa-rotate"></i></div>
+                        <div>
+                            <div class="info-label">Last Renewed</div>
+                            <div class="info-val mono"><?= htmlspecialchars($license['last_renew']) ?></div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <div class="info-row">
+                        <div class="info-ico i-<?= $dIco ?>" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;"><i class="fas fa-calendar-xmark"></i></div>
                         <div>
                             <div class="info-label">Expires</div>
                             <div class="info-val mono"><?= htmlspecialchars($license['expire_date']) ?></div>
                         </div>
                     </div>
-                    <?php if ($license['last_renew_date']): ?>
-                    <div class="info-row">
-                        <div class="info-ico i-green" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;"><i class="fas fa-rotate"></i></div>
-                        <div>
-                            <div class="info-label">Last Renewed</div>
-                            <div class="info-val mono"><?= htmlspecialchars($license['last_renew_date']) ?></div>
-                        </div>
-                    </div>
-                    <?php endif; ?>
                     <div class="info-row">
                         <div class="info-ico i-violet" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;"><i class="fas fa-circle-info"></i></div>
                         <div>
@@ -267,7 +275,6 @@ include 'navbar.php';
                             <div class="info-val mono">#<?= $license_id ?></div>
                         </div>
                     </div>
-
                     <?php if (!empty($license['created_at'])): ?>
                     <div class="info-row">
                         <div class="info-ico i-violet" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;"><i class="fas fa-calendar-plus"></i></div>
