@@ -270,6 +270,11 @@ if ($is_blocked) {
 
     <!-- Footer -->
     <div class="nb-footer">
+        <!-- Greeting card -->
+        <div class="nb-greet-card" id="nbGreetCard">
+            <img class="nb-greet-img" id="nbGreetImg" src="" alt="">
+            <div class="nb-greet-text" id="nbGreetText"></div>
+        </div>
 
         <!-- License badge -->
         <div class="nb-lic-badge nb-badge-<?= $badge_color ?>" id="nbLicBadge">
@@ -532,7 +537,40 @@ if ($is_blocked) {
     border-top: 1px solid rgba(0,0,0,.07);
     padding: .75rem;
 }
+/* ── Greeting card ───────────────────────────────────────── */
+.nb-greet-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: .5rem;
+    background: rgba(13,202,240,.06);
+    border: 1px solid rgba(13,202,240,.15);
+    border-radius: 10px;
+    padding: .45rem .6rem;
+    margin-bottom: .55rem;
+}
 
+.nb-greet-img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.nb-greet-text {
+    font-size: .72rem;
+    font-weight: 700;
+    color: #0891b2;
+    line-height: 1.35;
+}
+
+.nb-greet-text small {
+    display: block;
+    font-size: .65rem;
+    font-weight: 400;
+    color: #64748b;
+    margin-top: 1px;
+}
 /* License badge */
 .nb-lic-badge {
     display: flex;
@@ -950,5 +988,70 @@ if ($is_blocked) {
     }
 
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+})();
+// ── Occasion Greeting ─────────────────────────────────────
+(function () {
+    var today = new Date();
+    var month = today.getMonth() + 1; // 1-12
+    var date  = today.getDate();
+
+    var occasions = [
+        // Bangla New Year (Pohela Boishakh) - April 14
+        { m:4,  d:14, range:1, text: "শুভ নববর্ষ ১৪৩৩!<br><small>নতুন বছরের শুভেচ্ছা।</small>", img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f338.png" },
+
+        // English New Year - Jan 1
+        { m:1,  d:1,  range:2, text: "Happy New Year!<br><small>Wishing you a great year ahead</small>", img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f386.png" },
+
+        // Eid ul-Fitr (approx - update year to year)
+        { m:3,  d:31, range:3, text: "ঈদ মুবারক!<br><small>Eid ul-Fitr Greetings</small>", img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f319.png" },
+
+        // Eid ul-Adha (approx)
+        { m:6,  d:7,  range:3, text: "ঈদ মুবারক!<br><small>Eid ul-Adha Greetings</small>", img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f411.png" },
+
+        // Victory Day Bangladesh - Dec 16
+        { m:12, d:16, range:1, text: "বিজয় দিবসের শুভেচ্ছা!<br><small>Happy Victory Day</small>", img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f1e7-1f1e9.png" },
+
+        // Independence Day Bangladesh - Mar 26
+        { m:3,  d:26, range:1, text: "স্বাধীনতা দিবসের শুভেচ্ছা!<br><small>Happy Independence Day</small>", img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f1e7-1f1e9.png" },
+
+        // International Mother Language Day - Feb 21
+        { m:2,  d:21, range:1, text: "শহীদ দিবস ও আন্তর্জাতিক মাতৃভাষা দিবস<br><small>Mother Language Day</small>", img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f4d6.png" },
+
+        // Christmas - Dec 25
+        { m:12, d:25, range:1, text: "Merry Christmas!<br><small>Season's Greetings</small>", img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f384.png" },
+    ];
+
+    // Time-based fallback greetings
+    var hour = today.getHours();
+    var fallbacks = [
+        { text: "সুপ্রভাত!<br><small>Good morning, have a great day</small>",   img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f31e.png" },
+        { text: "শুভ বিকেল!<br><small>Good afternoon, keep it up</small>",       img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f44d.png" },
+        { text: "শুভ সন্ধ্যা!<br><small>Good evening, wrap up strong</small>",   img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f31f.png" },
+    ];
+
+    // Find matching occasion within range (days before/after)
+    var card = null;
+    for (var i = 0; i < occasions.length; i++) {
+        var o = occasions[i];
+        var oDate    = new Date(today.getFullYear(), o.m - 1, o.d);
+        var diffDays = Math.round((today - oDate) / 86400000);
+        if (diffDays >= 0 && diffDays <= o.range) {
+            card = o;
+            break;
+        }
+    }
+
+    // Fallback to time-based greeting
+    if (!card) {
+        card = hour < 12 ? fallbacks[0] : hour < 18 ? fallbacks[1] : fallbacks[2];
+    }
+
+    var imgEl  = document.getElementById('nbGreetImg');
+    var textEl = document.getElementById('nbGreetText');
+    if (imgEl && textEl) {
+        imgEl.src = card.img;
+        imgEl.alt = "";
+        textEl.innerHTML = card.text;
+    }
 })();
 </script>

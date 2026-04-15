@@ -352,6 +352,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 transform: translateY(0);
             }
         }
+        .greet-banner {
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            gap: .4rem;
+            background: rgba(13,202,240,.07);
+            border: 1px solid rgba(13,202,240,.18);
+            border-radius: 10px;
+            padding: .6rem .75rem;
+            margin: 0 0 20px;
+            display: none;
+        }
+
+        .greet-banner img {
+            width: 28px;
+            height: 28px;
+            flex-shrink: 0;
+            object-fit: contain;
+        }
+
+        .greet-banner-text {
+            font-size: .78rem;
+            font-weight: 600;
+            color: #0891b2;
+            line-height: 1.35;
+        }
+
+        .greet-banner-text small {
+            display: block;
+            font-size: .7rem;
+            font-weight: 400;
+            color: #64748b;
+        }
     </style>
 </head> 
 <body> 
@@ -360,7 +394,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="card-header">           
                 <img src="rajaiswari-wotbg.png" alt="Rajaiswari" class="company-logo">
             </div>         
-            <div class="card-body">           
+            <div class="card-body">
+                <!-- Occasion Banner -->
+                <!-- <div class="greet-banner" id="greetBanner" style="display:none!important;">
+                    <img id="greetBannerImg" src="" alt="">
+                    <div class="greet-banner-text" id="greetBannerText"></div>
+                </div> -->
                 <?php if ($error): ?>             
                     <div class="alert"><?= htmlspecialchars($error) ?></div>           
                 <?php endif; ?>           
@@ -410,6 +449,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 eyeClosed.style.display = 'none';
             }
         }
+(function () {
+    var today = new Date();
+    var month = today.getMonth() + 1;
+    var date  = today.getDate();
+    var hour  = today.getHours();
+
+    var occasions = [
+        { m:4,  d:14, range:1, text: "শুভ নববর্ষ ১৪৩৩!",         sub: "নতুন বছরের শুভেচ্ছা।",          img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f338.png" },
+        { m:1,  d:1,  range:2, text: "Happy New Year!",            sub: "Wishing you a wonderful year",   img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f386.png" },
+        { m:3,  d:31, range:3, text: "ঈদ মুবারক!",                sub: "Eid ul-Fitr Greetings",          img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f319.png" },
+        { m:6,  d:7,  range:3, text: "ঈদ মুবারক!",                sub: "Eid ul-Adha Greetings",          img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f411.png" },
+        { m:12, d:16, range:1, text: "বিজয় দিবসের শুভেচ্ছা!",    sub: "Happy Victory Day",              img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f1e7-1f1e9.png" },
+        { m:3,  d:26, range:1, text: "স্বাধীনতা দিবসের শুভেচ্ছা!", sub: "Happy Independence Day",        img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f1e7-1f1e9.png" },
+        { m:2,  d:21, range:1, text: "শহীদ দিবসের শুভেচ্ছা",      sub: "International Mother Language Day", img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f4d6.png" },
+        { m:12, d:25, range:1, text: "Merry Christmas!",           sub: "Season's Greetings",             img: "https://cdn.jsdelivr.net/gh/twitter/twemoji@14/assets/72x72/1f384.png" },
+    ];
+
+    var card = null;
+    for (var i = 0; i < occasions.length; i++) {
+        var o = occasions[i];
+        var oDate    = new Date(today.getFullYear(), o.m - 1, o.d);
+        var diffDays = Math.round((today - oDate) / 86400000);
+        if (diffDays >= 0 && diffDays <= o.range) { card = o; break; }
+    }
+
+    if (!card) return; // no occasion today — banner stays hidden
+
+    var banner  = document.getElementById('greetBanner');
+    var imgEl   = document.getElementById('greetBannerImg');
+    var textEl  = document.getElementById('greetBannerText');
+
+    if (banner && imgEl && textEl) {
+        imgEl.src = card.img;
+        imgEl.alt = card.text;
+        textEl.innerHTML = card.text + (card.sub ? '<small>' + card.sub + '</small>' : '');
+        banner.style.display = 'flex';
+    }
+})();
     </script>
 </body> 
 </html>
