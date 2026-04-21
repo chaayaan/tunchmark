@@ -1069,62 +1069,45 @@ document.getElementById('customerId').addEventListener('blur', function() {
 });
 
 /* ── QR Code (unchanged logic from original) ───────────────── */
-async function generateQRCode(bill) {
+function generateQRCode(bill) {
   return new Promise(resolve => {
     try {
       const base = window.location.origin + window.location.pathname.replace('order.php','');
-      const qr = qrcode(0, 'H'); // ← Use 'H' (High) error correction — allows ~30% damage
-      qr.addData(`${base}view_bill.php?id=${bill.id || ''}`);
+      const qr = qrcode(0,'M');
+      qr.addData(`${base}view_bill.php?id=${bill.id||''}`);
       qr.make();
 
-      const m  = qr.getModuleCount();
-      const cs = 6; // cell size in pixels
-      const size = m * cs;
+      try {
+        const svg = qr.createSvgTag(4,2);
+        const canvas = document.createElement('canvas');
+        canvas.width = canvas.height = 120;
+        const ctx = canvas.getContext('2d'), img = new Image();
+        const url = URL.createObjectURL(new Blob([svg], {type:'image/svg+xml;charset=utf-8'}));
+        img.onload = () => {
+          ctx.fillStyle='white'; ctx.fillRect(0,0,120,120);
+          ctx.drawImage(img,0,0,120,120);
+          URL.revokeObjectURL(url);
+          resolve(canvas.toDataURL('image/png',0.9));
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); fallback(); };
+        setTimeout(() => { if (!img.complete) { URL.revokeObjectURL(url); fallback(); } }, 3000);
+        img.src = url;
+      } catch(e) { fallback(); }
 
-      const canvas = document.createElement('canvas');
-      canvas.width = canvas.height = size;
-      const ctx = canvas.getContext('2d');
-
-      // 1. Draw white background
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, size, size);
-
-      // 2. Draw QR modules
-      ctx.fillStyle = 'black';
-      for (let r = 0; r < m; r++) {
-        for (let x = 0; x < m; x++) {
-          if (qr.isDark(r, x)) {
-            ctx.fillRect(x * cs, r * cs, cs, cs);
-          }
-        }
+      function fallback() {
+        try {
+          const m = qr.getModuleCount(), cs = Math.max(2,Math.floor(120/m));
+          const c = document.createElement('canvas');
+          c.width = c.height = cs*m;
+          const ctx = c.getContext('2d');
+          ctx.fillStyle='white'; ctx.fillRect(0,0,c.width,c.height);
+          ctx.fillStyle='black';
+          for(let r=0;r<m;r++) for(let x=0;x<m;x++)
+            if(qr.isDark(r,x)) ctx.fillRect(x*cs,r*cs,cs,cs);
+          resolve(c.toDataURL('image/png',0.9));
+        } catch(e) { resolve(null); }
       }
-
-      // 3. Overlay the logo in the center
-      const logo = new Image();
-      logo.onload = () => {
-        const logoSize = Math.floor(size * 0.22); // logo takes ~22% of QR width
-        const logoX = Math.floor((size - logoSize) / 2);
-        const logoY = Math.floor((size - logoSize) / 2);
-
-        // White padding behind logo so modules don't bleed through
-        const pad = 4;
-        ctx.fillStyle = 'white';
-        ctx.fillRect(logoX - pad, logoY - pad, logoSize + pad * 2, logoSize + pad * 2);
-
-        // Draw logo
-        ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
-
-        resolve(canvas.toDataURL('image/png', 0.95));
-      };
-      logo.onerror = () => {
-        // Logo failed to load — still return the plain QR
-        resolve(canvas.toDataURL('image/png', 0.95));
-      };
-      logo.src = 'favicon.png';
-
-    } catch (e) {
-      resolve(null);
-    }
+    } catch(e) { resolve(null); }
   });
 }
 
