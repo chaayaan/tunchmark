@@ -105,6 +105,29 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
         img { display: block; max-width: 100%; height: auto; }
         a { text-decoration: none; }
 
+        /* ── Intro Overlay ─────────────────────────────── */
+        #rg-intro-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background: rgb(255, 255, 255);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        #rg-intro-overlay.rg-intro-hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        #rg-intro-video {
+            width: min(680px, 90vw);
+            aspect-ratio: 1280 / 504;
+            object-fit: contain;
+            display: block;
+        }
+
         /* ── Navbar ─────────────────────────────────────── */
         .rg-nav {
             position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
@@ -414,6 +437,43 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
     </style>
 </head>
 <body oncontextmenu="return false;" oncopy="return false;" oncut="return false;" onpaste="return false;">
+<!-- ══ INTRO OVERLAY ══ -->
+<div id="rg-intro-overlay">
+    <video
+        id="rg-intro-video"
+        src="rj logo animation.mp4"
+        autoplay
+        muted
+        playsinline
+        preload="auto"
+    ></video>
+</div>
+
+<script>
+    (function () {
+        var overlay = document.getElementById('rg-intro-overlay');
+        var video   = document.getElementById('rg-intro-video');
+
+        function hideOverlay() {
+            overlay.classList.add('rg-intro-hidden');
+        }
+
+        // Hide when video ends
+        video.addEventListener('ended', hideOverlay);
+
+        // Fallback: hide after 4.5s in case video fails to load/play
+        var fallback = setTimeout(hideOverlay, 3000);
+
+        // Clear fallback if video plays fine
+        video.addEventListener('ended', function () { clearTimeout(fallback); });
+
+        // If video can't play at all (e.g. missing file), hide after 1s
+        video.addEventListener('error', function () {
+            clearTimeout(fallback);
+            setTimeout(hideOverlay, 800);
+        });
+    })();
+</script>
 
 <!-- ══ NAV ══════════════════════════════════════ -->
 <nav class="rg-nav" id="rgNavbar">
