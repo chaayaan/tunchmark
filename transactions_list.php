@@ -1,25 +1,85 @@
 <?php
+// ── POST handling MUST come before ANY output (includes, echo, HTML) ──────────
 require 'auth.php';
 include 'mydb.php';
-include 'navbar.php';
 
 date_default_timezone_set('Asia/Dhaka');
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+
+    if ($_POST['action'] === 'edit') {
+        $id     = intval($_POST['id']);
+        $type   = $_POST['rec_type'];
+        $cat    = intval($_POST['category_id']);
+        $amount = floatval($_POST['amount']);
+        $notes  = mysqli_real_escape_string($conn, $_POST['notes']);
+
+        if ($type === 'income') {
+            $branch = intval($_POST['branch_id']);
+            mysqli_query($conn,
+                "UPDATE branch_income
+                 SET category_id=$cat, branch_id=$branch, income=$amount, notes='$notes'
+                 WHERE id=$id"
+            );
+        } else {
+            mysqli_query($conn,
+                "UPDATE branch_expenses
+                 SET category_id=$cat, expense=$amount, notes='$notes'
+                 WHERE id=$id"
+            );
+        }
+        $qs = http_build_query(array_filter([
+            'type'      => $_POST['filter_type']      ?? 'all',
+            'date_from' => $_POST['filter_date_from'] ?? '',
+            'date_to'   => $_POST['filter_date_to']   ?? '',
+            'page'      => $_POST['filter_page']      ?? 1,
+            'saved'     => 1,
+        ]));
+        header("Location: transactions_list.php?$qs");
+        exit;
+    }
+
+    if ($_POST['action'] === 'delete') {
+        $id   = intval($_POST['id']);
+        $type = $_POST['rec_type'];
+        if ($type === 'income') {
+            mysqli_query($conn, "DELETE FROM branch_income WHERE id=$id");
+        } else {
+            mysqli_query($conn, "DELETE FROM branch_expenses WHERE id=$id");
+        }
+        $qs = http_build_query(array_filter([
+            'type'      => $_POST['filter_type']      ?? 'all',
+            'date_from' => $_POST['filter_date_from'] ?? '',
+            'date_to'   => $_POST['filter_date_to']   ?? '',
+            'page'      => $_POST['filter_page']      ?? 1,
+        ]));
+        header("Location: transactions_list.php?$qs");
+        exit;
+    }
+}
+
+// ── Now safe to output HTML ───────────────────────────────────────────────────
+include 'navbar.php';
+
+// ── Filters & Pagination ───────────────────────────────────────────────────────
 $filterType     = $_GET['type']      ?? 'all';
 $filterDateFrom = $_GET['date_from'] ?? date('Y-m-01');
 $filterDateTo   = $_GET['date_to']   ?? date('Y-m-d');
 $page           = max(1, intval($_GET['page'] ?? 1));
 $perPage        = 50;
 $offset         = ($page - 1) * $perPage;
+$savedSuccess   = isset($_GET['saved']);
 
 // Build UNION query
 $incomeQ = "SELECT bi.id, 'income' as type, bi.created_at as date, ic.name as category,
-             b.name as branch, bi.income as amount, bi.notes
+             b.name as branch, bi.branch_id, bi.category_id,
+             bi.income as amount, bi.notes
              FROM branch_income bi
              LEFT JOIN income_categories ic ON bi.category_id = ic.id
              LEFT JOIN branches b ON bi.branch_id = b.id WHERE 1=1";
 $expenseQ = "SELECT be.id, 'expense' as type, be.created_at as date, ec.name as category,
-              'N/A' as branch, be.expense as amount, be.notes
+              'N/A' as branch, 0 as branch_id, be.category_id,
+              be.expense as amount, be.notes
               FROM branch_expenses be
               LEFT JOIN expense_categories ec ON be.category_id = ec.id WHERE 1=1";
 
@@ -58,6 +118,17 @@ if ($filterType !== 'income') {
     if ($er) $totalExpenses = mysqli_fetch_assoc($er)['t'];
 }
 $netBalance = $totalIncome - $totalExpenses;
+
+// Fetch categories & branches for edit modal dropdowns
+$incomeCategories  = [];
+$expenseCategories = [];
+$branches          = [];
+$r = mysqli_query($conn, "SELECT id, name FROM income_categories ORDER BY name");
+if ($r) while ($row = mysqli_fetch_assoc($r)) $incomeCategories[] = $row;
+$r = mysqli_query($conn, "SELECT id, name FROM expense_categories ORDER BY name");
+if ($r) while ($row = mysqli_fetch_assoc($r)) $expenseCategories[] = $row;
+$r = mysqli_query($conn, "SELECT id, name FROM branches ORDER BY name");
+if ($r) while ($row = mysqli_fetch_assoc($r)) $branches[] = $row;
 ?>
 <!doctype html>
 <html lang="en">
@@ -135,7 +206,7 @@ $netBalance = $totalIncome - $totalExpenses;
     .chip a:hover{opacity:1;}
 
     /* Table */
-    .txn-tbl{width:100%;border-collapse:collapse;min-width:720px;}
+    .txn-tbl{width:100%;border-collapse:collapse;min-width:800px;}
     .txn-tbl thead th{padding:10px 14px;text-align:left;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--t4);background:var(--surface-2);border-bottom:1px solid var(--border);white-space:nowrap;}
     .txn-tbl tbody td{padding:11px 14px;border-bottom:1px solid var(--bsoft);vertical-align:middle;font-size:.875rem;}
     .txn-tbl tbody tr:last-child td{border-bottom:none;}
@@ -159,6 +230,14 @@ $netBalance = $totalIncome - $totalExpenses;
     .no-branch{font-size:.75rem;color:var(--t4);font-style:italic;}
     .id-tag{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--t4);background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;}
 
+    /* Action buttons */
+    .action-cell{display:flex;gap:5px;align-items:center;justify-content:flex-end;}
+    .btn-act{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--rs);border:1.5px solid;cursor:pointer;font-size:.72rem;transition:all .15s;background:transparent;}
+    .btn-edit{border-color:var(--blue-b);color:var(--blue);}
+    .btn-edit:hover{background:var(--blue);border-color:var(--blue);color:#fff;}
+    .btn-del{border-color:var(--red-b);color:var(--red);}
+    .btn-del:hover{background:var(--red);border-color:var(--red);color:#fff;}
+
     /* Empty state */
     .empty-state{padding:52px;text-align:center;}
     .empty-ico{font-size:2.5rem;color:var(--border);margin-bottom:10px;}
@@ -176,11 +255,139 @@ $netBalance = $totalIncome - $totalExpenses;
     .pag-disabled{opacity:.4;pointer-events:none;}
     .pag-dots{color:var(--t4);padding:0 2px;font-size:.82rem;}
 
+    /* Toast */
+    .toast-wrap{position:fixed;top:70px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;}
+    .toast{display:flex;align-items:center;gap:9px;padding:10px 16px;background:var(--surface);border:1px solid var(--green-b);border-radius:var(--r);box-shadow:0 4px 20px rgba(0,0,0,.1);font-size:.875rem;font-weight:600;color:var(--green);animation:slideIn .25s ease;}
+    @keyframes slideIn{from{opacity:0;transform:translateX(30px);}to{opacity:1;transform:translateX(0);}}
+
+    /* Edit Modal */
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(17,24,39,.45);backdrop-filter:blur(3px);z-index:1000;align-items:center;justify-content:center;}
+    .modal-overlay.open{display:flex;}
+    .modal-box{background:var(--surface);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.2);width:100%;max-width:480px;overflow:hidden;animation:modalIn .2s ease;}
+    @keyframes modalIn{from{opacity:0;transform:translateY(-16px) scale(.97);}to{opacity:1;transform:translateY(0) scale(1);}}
+    .modal-head{display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border);}
+    .modal-ico{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+    .modal-title{font-size:.9375rem;font-weight:700;color:var(--t1);}
+    .modal-type-badge{margin-left:auto;font-size:.72rem;font-weight:700;padding:2px 9px;border-radius:20px;}
+    .modal-close{margin-left:8px;width:28px;height:28px;border:none;background:transparent;border-radius:6px;cursor:pointer;color:var(--t4);font-size:.9rem;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+    .modal-close:hover{background:var(--bsoft);color:var(--t2);}
+    .modal-body{padding:20px;}
+    .form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .form-group{display:flex;flex-direction:column;gap:5px;}
+    .form-group.full{grid-column:1/-1;}
+    .form-label{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--t4);}
+    .form-ctrl{height:38px;padding:0 11px;border:1.5px solid var(--border);border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:.875rem;color:var(--t2);background:var(--surface);outline:none;transition:border-color .15s;width:100%;}
+    .form-ctrl:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+    select.form-ctrl{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239ca3af' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;}
+    textarea.form-ctrl{height:70px;padding:9px 11px;resize:vertical;}
+    .modal-foot{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);background:var(--surface-2);}
+    .btn-cancel{display:inline-flex;align-items:center;gap:5px;height:36px;padding:0 16px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:.875rem;font-weight:600;color:var(--t2);cursor:pointer;transition:all .15s;}
+    .btn-cancel:hover{background:var(--bsoft);}
+    .btn-save{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 20px;background:var(--blue);border:none;border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:.875rem;font-weight:700;color:#fff;cursor:pointer;transition:background .15s;}
+    .btn-save:hover{background:#1d4ed8;}
+
+    /* Delete confirm modal */
+    .del-modal-overlay{display:none;position:fixed;inset:0;background:rgba(17,24,39,.45);backdrop-filter:blur(3px);z-index:1001;align-items:center;justify-content:center;}
+    .del-modal-overlay.open{display:flex;}
+    .del-modal-box{background:var(--surface);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.2);width:100%;max-width:360px;overflow:hidden;animation:modalIn .2s ease;}
+    .del-modal-head{padding:18px 20px 10px;text-align:center;}
+    .del-ico{font-size:2rem;color:var(--red);margin-bottom:8px;}
+    .del-title{font-size:1rem;font-weight:700;color:var(--t1);margin-bottom:4px;}
+    .del-sub{font-size:.82rem;color:var(--t3);}
+    .del-modal-foot{display:flex;gap:8px;padding:16px 20px;border-top:1px solid var(--border);background:var(--surface-2);}
+    .btn-del-confirm{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;background:var(--red);border:none;border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:.875rem;font-weight:700;color:#fff;cursor:pointer;transition:background .15s;}
+    .btn-del-confirm:hover{background:#b91c1c;}
+    .btn-del-cancel{flex:1;display:inline-flex;align-items:center;justify-content:center;height:38px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--rs);font-family:'DM Sans',sans-serif;font-size:.875rem;font-weight:600;color:var(--t2);cursor:pointer;transition:all .15s;}
+    .btn-del-cancel:hover{background:var(--bsoft);}
+
     @media(max-width:991.98px){.page-shell{margin-left:0;}.top-bar{top:52px;}.main{padding:14px 14px 50px;}.stat-grid{grid-template-columns:1fr 1fr;}}
     @media(max-width:575px){.stat-grid{grid-template-columns:1fr;}}
   </style>
 </head>
 <body>
+
+<?php if ($savedSuccess): ?>
+<div class="toast-wrap" id="toastWrap">
+  <div class="toast"><i class="fas fa-check-circle"></i> Transaction updated successfully.</div>
+</div>
+<script>setTimeout(()=>{var t=document.getElementById('toastWrap');if(t)t.style.display='none';},3500);</script>
+<?php endif; ?>
+
+<!-- ── Edit Modal ──────────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div class="modal-ico" id="editModalIco"></div>
+      <span class="modal-title">Edit Transaction</span>
+      <span class="modal-type-badge" id="editModalBadge"></span>
+      <button class="modal-close" onclick="closeEditModal()"><i class="fas fa-xmark"></i></button>
+    </div>
+    <form method="POST">
+      <input type="hidden" name="action"          value="edit">
+      <input type="hidden" name="id"              id="editId">
+      <input type="hidden" name="rec_type"        id="editType">
+      <input type="hidden" name="filter_type"     value="<?= htmlspecialchars($filterType) ?>">
+      <input type="hidden" name="filter_date_from"value="<?= htmlspecialchars($filterDateFrom) ?>">
+      <input type="hidden" name="filter_date_to"  value="<?= htmlspecialchars($filterDateTo) ?>">
+      <input type="hidden" name="filter_page"     value="<?= $page ?>">
+
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group" id="editCatGroup">
+            <label class="form-label">Category</label>
+            <select name="category_id" id="editCategoryId" class="form-ctrl" required>
+              <!-- populated by JS -->
+            </select>
+          </div>
+          <div class="form-group" id="editBranchGroup">
+            <label class="form-label">Branch</label>
+            <select name="branch_id" id="editBranchId" class="form-ctrl">
+              <?php foreach ($branches as $b): ?>
+              <option value="<?= $b['id'] ?>"><?= htmlspecialchars($b['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Amount (৳)</label>
+            <input type="number" name="amount" id="editAmount" class="form-ctrl" step="0.01" min="0" required>
+          </div>
+          <div class="form-group full">
+            <label class="form-label">Notes</label>
+            <textarea name="notes" id="editNotes" class="form-ctrl"></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+        <button type="submit" class="btn-save"><i class="fas fa-floppy-disk" style="font-size:.75rem;"></i> Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Delete Confirm Modal ───────────────────────────────────────────────── -->
+<div class="del-modal-overlay" id="delModal">
+  <div class="del-modal-box">
+    <div class="del-modal-head">
+      <div class="del-ico"><i class="fas fa-triangle-exclamation"></i></div>
+      <div class="del-title">Delete Transaction?</div>
+      <div class="del-sub">This action cannot be undone.</div>
+    </div>
+    <form method="POST">
+      <input type="hidden" name="action"          value="delete">
+      <input type="hidden" name="id"              id="delId">
+      <input type="hidden" name="rec_type"        id="delType">
+      <input type="hidden" name="filter_type"     value="<?= htmlspecialchars($filterType) ?>">
+      <input type="hidden" name="filter_date_from"value="<?= htmlspecialchars($filterDateFrom) ?>">
+      <input type="hidden" name="filter_date_to"  value="<?= htmlspecialchars($filterDateTo) ?>">
+      <input type="hidden" name="filter_page"     value="<?= $page ?>">
+      <div class="del-modal-foot">
+        <button type="button" class="btn-del-cancel" onclick="closeDelModal()">Cancel</button>
+        <button type="submit" class="btn-del-confirm"><i class="fas fa-trash" style="font-size:.72rem;"></i> Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <div class="page-shell">
   <header class="top-bar">
@@ -294,11 +501,12 @@ $netBalance = $totalIncome - $totalExpenses;
               <th style="width:130px;">Branch</th>
               <th style="width:130px;text-align:right;">Amount</th>
               <th>Notes</th>
+              <th style="width:80px;text-align:right;">Actions</th>
             </tr>
           </thead>
           <tbody>
           <?php if (empty($transactions)): ?>
-          <tr><td colspan="7">
+          <tr><td colspan="8">
             <div class="empty-state">
               <div class="empty-ico"><i class="fas fa-inbox"></i></div>
               <div class="empty-title">No transactions found</div>
@@ -332,6 +540,24 @@ $netBalance = $totalIncome - $totalExpenses;
             <td style="color:var(--t3);font-size:.82rem;">
               <?= !empty($t['notes']) ? htmlspecialchars($t['notes']) : '<span style="color:var(--t4);font-style:italic;">—</span>' ?>
             </td>
+            <td>
+              <div class="action-cell">
+                <button type="button" class="btn-act btn-edit js-edit" title="Edit"
+                  data-id="<?= $t['id'] ?>"
+                  data-type="<?= $t['type'] ?>"
+                  data-cat="<?= intval($t['category_id']) ?>"
+                  data-branch="<?= intval($t['branch_id'] ?? 0) ?>"
+                  data-amount="<?= number_format($t['amount'], 2, '.', '') ?>"
+                  data-notes="<?= htmlspecialchars($t['notes'] ?? '', ENT_QUOTES) ?>">
+                  <i class="fas fa-pen"></i>
+                </button>
+                <button type="button" class="btn-act btn-del js-del" title="Delete"
+                  data-id="<?= $t['id'] ?>"
+                  data-type="<?= $t['type'] ?>">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
           </tr>
           <?php endforeach; endif; ?>
           </tbody>
@@ -347,6 +573,7 @@ $netBalance = $totalIncome - $totalExpenses;
                   if ($filterType !== 'income')   echo '<span style="color:var(--red);">−৳'.number_format($pgExp,2).'</span>';
                 ?>
               </td>
+              <td></td>
               <td></td>
             </tr>
           </tfoot>
@@ -384,5 +611,94 @@ $netBalance = $totalIncome - $totalExpenses;
     </div>
   </div>
 </div>
+
+<script>
+const incomeCategories  = <?= json_encode($incomeCategories) ?>;
+const expenseCategories = <?= json_encode($expenseCategories) ?>;
+
+function openEditModal(btn) {
+  const id       = btn.dataset.id;
+  const type     = btn.dataset.type;
+  const catId    = parseInt(btn.dataset.cat);
+  const branchId = parseInt(btn.dataset.branch);
+  const amount   = btn.dataset.amount;
+  const notes    = btn.dataset.notes;
+
+  document.getElementById('editId').value     = id;
+  document.getElementById('editType').value   = type;
+  document.getElementById('editAmount').value = amount;
+  document.getElementById('editNotes').value  = notes;
+
+  const ico   = document.getElementById('editModalIco');
+  const badge = document.getElementById('editModalBadge');
+  if (type === 'income') {
+    ico.style.background = 'var(--green-bg)';
+    ico.style.color      = 'var(--green)';
+    ico.innerHTML        = '<i class="fas fa-arrow-down-to-bracket"></i>';
+    badge.className      = 'modal-type-badge pill-income type-pill';
+    badge.textContent    = 'Income';
+  } else {
+    ico.style.background = 'var(--red-bg)';
+    ico.style.color      = 'var(--red)';
+    ico.innerHTML        = '<i class="fas fa-arrow-up-from-bracket"></i>';
+    badge.className      = 'modal-type-badge pill-expense type-pill';
+    badge.textContent    = 'Expense';
+  }
+
+  const catSel = document.getElementById('editCategoryId');
+  catSel.innerHTML = '';
+  const cats = type === 'income' ? incomeCategories : expenseCategories;
+  cats.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = c.name;
+    if (parseInt(c.id) === catId) o.selected = true;
+    catSel.appendChild(o);
+  });
+
+  const branchGroup = document.getElementById('editBranchGroup');
+  if (type === 'income') {
+    branchGroup.style.display = '';
+    document.getElementById('editBranchId').value = branchId;
+  } else {
+    branchGroup.style.display = 'none';
+  }
+
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.remove('open');
+}
+
+function openDelModal(btn) {
+  document.getElementById('delId').value   = btn.dataset.id;
+  document.getElementById('delType').value = btn.dataset.type;
+  document.getElementById('delModal').classList.add('open');
+}
+
+function closeDelModal() {
+  document.getElementById('delModal').classList.remove('open');
+}
+
+// Event delegation — attach once, works for all rows
+document.addEventListener('click', function(e) {
+  const editBtn = e.target.closest('.js-edit');
+  const delBtn  = e.target.closest('.js-del');
+  if (editBtn) openEditModal(editBtn);
+  if (delBtn)  openDelModal(delBtn);
+});
+
+document.getElementById('editModal').addEventListener('click', function(e) {
+  if (e.target === this) closeEditModal();
+});
+document.getElementById('delModal').addEventListener('click', function(e) {
+  if (e.target === this) closeDelModal();
+});
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') { closeEditModal(); closeDelModal(); }
+});
+</script>
 </body>
 </html>
