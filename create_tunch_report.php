@@ -799,7 +799,7 @@ if (isset($_GET['report_id'])) {
 
             <hr class="solid-line">
             <div class="quality-info">
-                <span><?= $purityLabel ?> : <?= $purityValue !== null ? rtrim(rtrim(number_format((float)$purityValue, 2), '0'), '.') : 'N/A' ?>%</span>
+                <span><?= $purityLabel ?> : <?= $purityValue !== null ? number_format((float)$purityValue, 2) : 'N/A' ?>%</span>
                 <span>Karat : <?= htmlspecialchars($report_data['karat'] ?? 'N/A') ?>K</span>
             </div>
             <hr class="solid-line">
