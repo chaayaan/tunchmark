@@ -256,7 +256,6 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
         .rg-page-body {
             padding-top: calc(var(--rg-nav-h) + 40px);
             padding-bottom: 60px;
-            min-height: calc(100vh - var(--rg-nav-h));
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -283,14 +282,28 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
 
         .report-card {
             width: <?= $cardWidth ?>px;
-            background: #fff;
-            border: 1px solid #e4e7ec;
+            background: transparent;
+            border: none;
+            box-shadow: none;
             border-radius: 10px;
-            box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
             overflow: hidden;
+            position: relative;
+        }
+        .report-pad-bg {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+            z-index: 0;
+            pointer-events: none;
+            display: block;
+        }
+        .report-card-content {
+            position: relative;
+            z-index: 1;
         }
 
-        .receipt-header { display: block; width: 100%; max-width: 340px; margin: 0 auto; }
 
         .report-type-banner {
             text-align: center;
@@ -301,8 +314,16 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
             border-bottom: 3px solid #5a7188;
             background: #fff;
         }
+        .report-card-content {
+            padding-top: 90px;    /* adjust to clear the pad's header area */
+            padding-bottom: 70px; /* adjust to clear the pad's footer area */
+        }
 
-        .tunch-container { padding: 16px 28px 14px; background: white; position: relative; }
+        .tunch-container {
+            padding: 16px 28px 14px;
+            background: white;  /* ← change to transparent */
+            position: relative;
+        }
         .tunch-container::before {
             content: ''; position: absolute; top: 50%; left: 50%;
             transform: translate(-50%, -50%) rotate(-25deg);
@@ -438,7 +459,7 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
 </head>
 <body oncontextmenu="return false;" oncopy="return false;" oncut="return false;" onpaste="return false;">
 <!-- ══ INTRO OVERLAY ══ -->
-<div id="rg-intro-overlay">
+<!-- <div id="rg-intro-overlay">
     <video
         id="rg-intro-video"
         src="rj logo animation.mp4"
@@ -447,7 +468,7 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
         playsinline
         preload="auto"
     ></video>
-</div>
+</div> -->
 
 <script>
     (function () {
@@ -578,11 +599,13 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
         <div class="scale-inner" id="scaleInner">
             <div class="report-card" id="reportCard">
 
-                <img src="receiptheader.png" alt="Rajaiswari" class="receipt-header">
+                <img src="report pad.png" alt="" class="report-pad-bg" aria-hidden="true">
+
+                <div class="report-card-content">
 
                 <?php if ($isHallmark): ?>
                 <!-- ══ HALLMARK REPORT ══ -->
-                <div style="background:white;position:relative;">
+                <div style="background:transparent;position:relative;">
                     <div style="position:absolute;top:50%;left:50%;
                                 transform:translate(-50%,-50%) rotate(-25deg);
                                 width:250px;height:250px;
@@ -778,7 +801,7 @@ $cardWidth = ($isHallmark && $report_data) ? 750 : 680;
                 <div class="report-footer-note">
                     This is an official report. For queries, contact our support team.
                 </div> -->
-
+                </div><!-- /report-card-content -->
             </div><!-- /report-card -->
         </div><!-- /scale-inner -->
     </div><!-- /scale-wrapper -->
