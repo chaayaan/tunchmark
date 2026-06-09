@@ -246,7 +246,7 @@ if ($is_blocked) {
                 <span>Inventory</span>
                 <i class="fas fa-chevron-down nb-chevron"></i>
             </div>
-            <div class="nb-submenu <?= in_array(basename($_SERVER['PHP_SELF']), ['inventory.php','stock_in.php','stock_out.php']) ? 'nb-open' : '' ?>"
+            <div class="nb-submenu <?= in_array(basename($_SERVER['PHP_SELF']), ['inventory.php','stock_in.php','stock_out.php','products.php']) ? 'nb-open' : '' ?>"
                  id="nbInventory">
                 <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'inventory.php' ? 'nb-active' : '' ?>"
                    href="inventory.php">
@@ -254,11 +254,15 @@ if ($is_blocked) {
                 </a>
                 <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'stock_in.php' ? 'nb-active' : '' ?>"
                    href="stock_in.php">
-                    <i class="fas fa-arrow-down-to-line"></i><span>Stock In</span>
+                    <i class="fas fa-download"></i><span>Stock In</span>
                 </a>
                 <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'stock_out.php' ? 'nb-active' : '' ?>"
                    href="stock_out.php">
-                    <i class="fas fa-arrow-up-from-line"></i><span>Stock Out</span>
+                    <i class="fas fa-upload"></i><span>Stock Out</span>
+                </a>
+                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'products.php' ? 'nb-active' : '' ?>"
+                   href="products.php">
+                    <i class="fas fa-box"></i><span>Products</span>
                 </a>
             </div>
         </div>
