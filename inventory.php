@@ -22,11 +22,23 @@ include 'navbar.php';
   .tb-sub { font-size:.8rem; color:#9ca3af; }
   .main { flex:1; padding:20px 22px 60px; display:flex; flex-direction:column; gap:14px; }
 
-  .card { border:none; border-radius:12px; box-shadow:0 1px 6px rgba(0,0,0,.07); }
-  .stat-card { border-radius:12px; padding:20px 24px; color:#fff; position:relative; overflow:hidden; }
-  .stat-card .icon { font-size:2.4rem; opacity:.25; position:absolute; right:18px; top:14px; }
-  .stat-card h2 { font-size:2rem; font-weight:800; margin:0; }
-  .stat-card p { margin:0; font-size:.8rem; opacity:.85; text-transform:uppercase; letter-spacing:.5px; }
+  /* Stat cards */
+  .stat-card-new { background:#fff; border-radius:12px; border:1px solid #e9ecef; padding:16px; position:relative; overflow:hidden; display:flex; align-items:center; gap:14px; }
+  .top-bar-accent { position:absolute; top:0; left:0; right:0; height:3.5px; }
+  .accent-blue{background:#3b82f6;} .accent-green{background:#10b981;} .accent-red{background:#ef4444;} .accent-amber{background:#f59e0b;}
+  .icon-circle { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+  .ic-blue{background:#eff6ff;color:#2563eb;} .ic-green{background:#ecfdf5;color:#059669;} .ic-red{background:#fef2f2;color:#dc2626;} .ic-amber{background:#fffbeb;color:#d97706;}
+  .stat-label { font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:3px; }
+  .stat-value { font-size:24px; font-weight:700; color:#111827; line-height:1; }
+  .stat-sub { font-size:12px; }
+  .sub-blue { color:#2563eb; } .sub-green { color:#059669; } .sub-red { color:#dc2626; } .sub-amber { color:#d97706; }
+
+  /* Nav cards */
+  .nav-card { background:#fff; border-radius:12px; border:1px solid #e9ecef; padding:18px 16px; display:flex; align-items:center; gap:14px; transition:border-color .15s; }
+  .nav-card:hover { border-color:#d1d5db; }
+  .nav-icon { width:42px; height:42px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+  .nav-label { font-size:11px; font-weight:600; color:#6b7280; text-transform:uppercase; letter-spacing:.5px; margin-bottom:2px; }
+  .nav-count { font-size:22px; font-weight:700; color:#111827; line-height:1; }
   .bg-inv { background:linear-gradient(135deg,#0f3460,#1a1a6e); }
   .bg-in  { background:linear-gradient(135deg,#0ead69,#06795c); }
   .bg-out { background:linear-gradient(135deg,#e94560,#a01535); }
@@ -93,37 +105,75 @@ $summary = $conn->query("
     <!-- Stat cards -->
     <div class="row g-3">
       <div class="col-6 col-md-3">
-        <div class="stat-card bg-inv"><i class="bi bi-boxes icon"></i><p>Total Units</p><h2><?= $total ?></h2></div>
+        <div class="stat-card-new">
+          <div class="top-bar-accent accent-blue"></div>
+          <div class="icon-circle ic-blue"><i class="bi bi-boxes"></i></div>
+          <div>
+            <div class="stat-label">Total Units</div>
+            <div class="stat-value"><?= $total ?></div>
+          </div>
+        </div>
       </div>
       <div class="col-6 col-md-3">
-        <div class="stat-card bg-in"><i class="bi bi-archive icon"></i><p>In Stock</p><h2><?= $in_stock ?></h2></div>
+        <div class="stat-card-new">
+          <div class="top-bar-accent accent-green"></div>
+          <div class="icon-circle ic-green"><i class="bi bi-archive"></i></div>
+          <div>
+            <div class="stat-label">In Stock</div>
+            <div class="stat-value"><?= $in_stock ?></div>
+          </div>
+        </div>
       </div>
       <div class="col-6 col-md-3">
-        <div class="stat-card bg-out"><i class="bi bi-cart-check icon"></i><p>Sold</p><h2><?= $sold ?></h2></div>
+        <div class="stat-card-new">
+          <div class="top-bar-accent accent-red"></div>
+          <div class="icon-circle ic-red"><i class="bi bi-cart-check"></i></div>
+          <div>
+            <div class="stat-label">Sold</div>
+            <div class="stat-value"><?= $sold ?></div>
+          </div>
+        </div>
       </div>
       <div class="col-6 col-md-3">
-        <div class="stat-card bg-dmg"><i class="bi bi-exclamation-triangle icon"></i><p>Damaged</p><h2><?= $damaged ?></h2></div>
+        <div class="stat-card-new">
+          <div class="top-bar-accent accent-amber"></div>
+          <div class="icon-circle ic-amber"><i class="bi bi-exclamation-triangle"></i></div>
+          <div>
+            <div class="stat-label">Damaged</div>
+            <div class="stat-value"><?= $damaged ?></div>
+          </div>
+        </div>
       </div>
     </div>
 
+    <!-- Nav cards -->
     <div class="row g-3">
       <div class="col-4">
-        <div class="card p-3 text-center">
-          <div class="text-muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.5px">Products</div>
-          <div style="font-size:1.6rem;font-weight:800;color:var(--primary)"><?= $products_count ?></div>
-        </div>
+        <a href="products.php" class="nav-card text-decoration-none">
+          <div class="nav-icon ic-blue"><i class="bi bi-box-seam"></i></div>
+          <div>
+            <div class="nav-label">Products</div>
+            <div class="nav-count"><?= $products_count ?></div>
+          </div>
+        </a>
       </div>
       <div class="col-4">
-        <div class="card p-3 text-center">
-          <div class="text-muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.5px">Suppliers</div>
-          <div style="font-size:1.6rem;font-weight:800;color:var(--primary)"><?= $suppliers_count ?></div>
-        </div>
+        <a href="suppliers.php" class="nav-card text-decoration-none">
+          <div class="nav-icon ic-teal"><i class="bi bi-truck"></i></div>
+          <div>
+            <div class="nav-label">Suppliers</div>
+            <div class="nav-count"><?= $suppliers_count ?></div>
+          </div>
+        </a>
       </div>
       <div class="col-4">
-        <div class="card p-3 text-center">
-          <div class="text-muted" style="font-size:.75rem;text-transform:uppercase;letter-spacing:.5px">Buyers</div>
-          <div style="font-size:1.6rem;font-weight:800;color:var(--primary)"><?= $buyers_count ?></div>
-        </div>
+        <a href="buyers.php" class="nav-card text-decoration-none">
+          <div class="nav-icon ic-purple"><i class="bi bi-people"></i></div>
+          <div>
+            <div class="nav-label">Buyers</div>
+            <div class="nav-count"><?= $buyers_count ?></div>
+          </div>
+        </a>
       </div>
     </div>
 
