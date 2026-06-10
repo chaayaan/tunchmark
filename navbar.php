@@ -233,10 +233,6 @@ if ($is_blocked) {
            href="reports.php">
             <i class="fas fa-chart-bar"></i><span>Sales Reports</span>
         </a>
-        <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'order.php' ? 'nb-active' : '' ?>"
-           href="order.php">
-            <i class="fas fa-plus-circle"></i><span>Order</span>
-        </a>
 
         <!-- Inventory -->
         <div class="nb-group">
