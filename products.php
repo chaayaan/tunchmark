@@ -122,7 +122,7 @@ $active_page = 'products';
 
   /* Items sub-table */
   .items-tbl { width:100%; border-collapse:collapse; }
-  .items-tbl thead th { padding:7px 14px; background:#f8f9fc; color:#6b7280; font-size:.7rem; text-transform:uppercase; letter-spacing:.06em; font-weight:700; border-bottom:1px solid #f0f1f3; }
+  .items-tbl thead th { padding:7px 14px; background:#f8f9fc; color:#6b7280; font-size:.7rem; text-transform:uppercase; letter-spacing:.06em; font-weight:700; border-bottom:1px solid #f0f1f3; white-space:nowrap; }
   .items-tbl tbody td { padding:7px 14px; font-size:.82rem; border-bottom:1px solid #f9fafb; vertical-align:middle; }
   .items-tbl tbody tr:last-child td { border-bottom:none; }
 
@@ -237,11 +237,15 @@ $active_page = 'products';
 
             // Recent items for expand (limit 20 for performance)
             $items_res = $conn->query("
-                SELECT pi.id, pi.serial_no, pi.part_no, pi.status, pi.in_date, pi.out_date,
-                       s.name AS supplier_name
+                SELECT pi.id, pi.serial_no, pi.part_no, pi.storage_location, pi.status,
+                       pi.in_date, pi.out_date,
+                       s.name AS supplier_name,
+                       b.name AS buyer_name
                 FROM product_items pi
                 JOIN stock_in si ON si.id = pi.stock_in_id
                 JOIN suppliers s ON s.id = si.supplier_id
+                LEFT JOIN stock_out so ON so.id = pi.stock_out_id
+                LEFT JOIN buyers b ON b.id = so.buyer_id
                 WHERE pi.product_id = {$p['id']}
                 ORDER BY pi.created_at DESC
                 LIMIT 20
@@ -298,7 +302,7 @@ $active_page = 'products';
           <!-- Expandable items row -->
           <tr class="expand-row" id="items-<?= $p['id'] ?>">
             <td></td>
-            <td colspan="6" style="padding:0;background:#fafbfc;">
+            <td colspan="5" style="padding:0;background:#fafbfc;">
               <?php if($items_count === 0): ?>
                 <div style="padding:14px 16px;color:#9ca3af;font-size:.82rem;">
                   <i class="bi bi-box me-1"></i>No units stocked yet.
@@ -316,12 +320,15 @@ $active_page = 'products';
                 </div>
                 <?php endif; ?>
               </div>
+              <div style="overflow-x:auto;">
               <table class="items-tbl">
                 <thead>
                   <tr>
                     <th>Serial No</th>
                     <th>Part No</th>
+                    <th>Location</th>
                     <th>Supplier</th>
+                    <th>Buyer</th>
                     <th>In Date</th>
                     <th>Out Date</th>
                     <th>Status</th>
@@ -333,7 +340,9 @@ $active_page = 'products';
                 <tr>
                   <td><code style="font-size:.78rem;"><?= htmlspecialchars($item['serial_no']) ?></code></td>
                   <td style="color:#374151;"><?= $item['part_no'] ? htmlspecialchars($item['part_no']) : '<span style="color:#9ca3af;">—</span>' ?></td>
+                  <td style="font-size:.78rem;color:#6b7280;"><?= $item['storage_location'] ? htmlspecialchars($item['storage_location']) : '<span style="color:#9ca3af;">—</span>' ?></td>
                   <td style="font-size:.78rem;color:#6b7280;"><?= htmlspecialchars($item['supplier_name']) ?></td>
+                  <td style="font-size:.78rem;color:#6b7280;"><?= $item['buyer_name'] ? htmlspecialchars($item['buyer_name']) : '<span style="color:#9ca3af;">—</span>' ?></td>
                   <td style="font-size:.78rem;color:#6b7280;"><?= $item['in_date'] ? date('d M Y', strtotime($item['in_date'])) : '—' ?></td>
                   <td style="font-size:.78rem;color:#6b7280;"><?= $item['out_date'] ? date('d M Y', strtotime($item['out_date'])) : '<span style="color:#9ca3af;">—</span>' ?></td>
                   <td><span class="badge-status badge-<?= $item['status'] ?>"><?= $item['status'] ?></span></td>
@@ -350,6 +359,7 @@ $active_page = 'products';
                 <?php endwhile; ?>
                 </tbody>
               </table>
+              </div>
               <?php if($p['total_units'] > 20): ?>
                 <div style="padding:8px 14px;font-size:.75rem;color:#9ca3af;">
                   <i class="bi bi-info-circle me-1"></i>Showing most recent 20 of <?= $p['total_units'] ?> units.

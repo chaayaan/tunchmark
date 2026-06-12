@@ -17,18 +17,21 @@ if (isset($_POST['submit_batch'])) {
     $product_ids = $_POST['product_id'] ?? [];
     $serial_nos  = $_POST['serial_no']  ?? [];
     $part_nos    = $_POST['part_no']    ?? [];
+    $locations   = $_POST['storage_location'] ?? [];
 
     foreach ($product_ids as $i => $pid) {
-        $pid    = (int)$pid;
-        $serial = $conn->real_escape_string(trim($serial_nos[$i] ?? ''));
-        $part   = $conn->real_escape_string(trim($part_nos[$i]  ?? ''));
+        $pid      = (int)$pid;
+        $serial   = $conn->real_escape_string(trim($serial_nos[$i] ?? ''));
+        $part     = $conn->real_escape_string(trim($part_nos[$i]  ?? ''));
+        $location = $conn->real_escape_string(trim($locations[$i] ?? ''));
         if (!$pid || !$serial) continue;
         $dup = $conn->query("SELECT id FROM product_items WHERE serial_no='$serial'");
         if ($dup->num_rows > 0) {
             $errors[] = "Serial <strong>$serial</strong> already exists — skipped.";
         } else {
-            $conn->query("INSERT INTO product_items (product_id, stock_in_id, serial_no, part_no, in_date, status)
-                          VALUES ($pid, $new_id, '$serial', '$part', '$stock_date', 'in_stock')");
+            $loc_val = $location !== '' ? "'$location'" : 'NULL';
+            $conn->query("INSERT INTO product_items (product_id, stock_in_id, serial_no, part_no, storage_location, in_date, status)
+                          VALUES ($pid, $new_id, '$serial', '$part', $loc_val, '$stock_date', 'in_stock')");
             $added++;
         }
     }
@@ -78,7 +81,7 @@ if ($all_sin->num_rows > 0) {
     $all_sin->data_seek(0);
     $id_list   = implode(',', $ids);
     $items_res = $conn->query("
-        SELECT pi.id, pi.stock_in_id, pi.serial_no, pi.part_no, pi.in_date, pi.status, p.product_name
+        SELECT pi.id, pi.stock_in_id, pi.serial_no, pi.part_no, pi.storage_location, pi.in_date, pi.status, p.product_name
         FROM product_items pi
         JOIN products p ON p.id = pi.product_id
         WHERE pi.stock_in_id IN ($id_list)
@@ -143,7 +146,11 @@ $active_page = 'stock_in';
 
   .item-row { background:#f8f9fc; border:1px solid #e9ecef; border-radius:10px; padding:12px 14px; margin-bottom:10px; position:relative; }
   .item-row .remove-btn { position:absolute; top:10px; right:10px; }
-  .modal-dialog { max-width:680px; }
+
+  /* Modal scroll fix */
+  .modal-dialog { max-width:760px; }
+  #stockInModal .modal-content { max-height:90vh; display:flex; flex-direction:column; }
+  #stockInModal .modal-body { overflow-y:auto; flex:1 1 auto; }
 
   @media(max-width:991.98px){ .page-shell { margin-left:0; } .top-bar { top:52px; } }
 </style>
@@ -197,8 +204,9 @@ $active_page = 'stock_in';
           <colgroup>
             <col style="width:200px;">
             <col style="width:auto;">
-            <col style="width:130px;">
-            <col style="width:110px;">
+            <col style="width:120px;">
+            <col style="width:100px;">
+            <col style="width:120px;">
             <col style="width:100px;">
             <col style="width:100px;">
             <col style="width:70px;">
@@ -209,6 +217,7 @@ $active_page = 'stock_in';
               <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Product</th>
               <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Serial No</th>
               <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Part No</th>
+              <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Location</th>
               <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">In Date</th>
               <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Status</th>
               <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:center;">Action</th>
@@ -216,13 +225,6 @@ $active_page = 'stock_in';
           </thead>
         </table>
       </div>
-
-<?php if($all_sin->num_rows === 0): ?>
-  <div style="padding:56px 24px;text-align:center;color:#9ca3af;">
-    <i class="bi bi-inbox" style="font-size:2.8rem;display:block;margin-bottom:12px;"></i>
-    <div style="font-weight:700;font-size:.9375rem;">No stock-in records found</div>
-  </div>
-<?php else: ?>
 
 <?php $all_sin->data_seek(0); while($sin = $all_sin->fetch_assoc()):
   $items      = $sin_items[$sin['id']] ?? [];
@@ -233,8 +235,9 @@ $active_page = 'stock_in';
     <colgroup>
       <col style="width:200px;">   <!-- Supplier / Date -->
       <col style="width:auto;">    <!-- Product — flex -->
-      <col style="width:130px;">   <!-- Serial No -->
-      <col style="width:110px;">   <!-- Part No -->
+      <col style="width:120px;">   <!-- Serial No -->
+      <col style="width:100px;">   <!-- Part No -->
+      <col style="width:120px;">   <!-- Location -->
       <col style="width:100px;">   <!-- In Date -->
       <col style="width:100px;">   <!-- Status -->
       <col style="width:70px;">    <!-- Action -->
@@ -248,7 +251,7 @@ $active_page = 'stock_in';
           <div style="font-size:.78rem;color:#6b7280;margin-top:2px;"><i class="bi bi-calendar3 me-1"></i><?= date('d M Y', strtotime($sin['stock_date'])) ?></div>
           <div style="font-size:.7rem;color:#9ca3af;font-family:monospace;">Batch #<?= $sin['id'] ?></div>
         </td>
-        <td colspan="6" style="padding:10px 14px;color:#9ca3af;font-size:.875rem;font-style:italic;">No items in this batch</td>
+        <td colspan="7" style="padding:10px 14px;color:#9ca3af;font-size:.875rem;font-style:italic;">No items in this batch</td>
       </tr>
     <?php else: ?>
       <?php foreach($items as $idx => $item): ?>
@@ -283,6 +286,11 @@ $active_page = 'stock_in';
           <?= $item['part_no'] ? htmlspecialchars($item['part_no']) : '<span style="color:#d1d5db;">—</span>' ?>
         </td>
 
+        <!-- Location -->
+        <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:.875rem;color:#6b7280;">
+          <?= $item['storage_location'] ? htmlspecialchars($item['storage_location']) : '<span style="color:#d1d5db;">—</span>' ?>
+        </td>
+
         <!-- In Date -->
         <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;font-size:.78rem;color:#6b7280;white-space:nowrap;font-family:monospace;">
           <?= date('d M Y', strtotime($item['in_date'])) ?>
@@ -312,8 +320,6 @@ $active_page = 'stock_in';
   </table>
 </div>
 <?php endwhile; ?>
-
-<?php endif; ?>
 
       <!-- Pagination -->
       <?php if($total_pages > 1): ?>
@@ -348,9 +354,9 @@ $active_page = 'stock_in';
 <div class="modal fade" id="stockInModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content" style="border:none;border-radius:14px;overflow:hidden;">
-      <form method="POST">
+      <form method="POST" style="display:flex;flex-direction:column;min-height:0;">
         <input type="hidden" name="submit_batch" value="1">
-        <div class="modal-header" style="background:#1a1a2e;border:none;">
+        <div class="modal-header" style="background:#1a1a2e;border:none;flex-shrink:0;">
           <h5 class="modal-title" style="color:#fff;font-size:.95rem;font-weight:700;">
             <i class="bi bi-box-arrow-in-down me-2"></i>New Stock In — Batch Entry
           </h5>
@@ -383,7 +389,7 @@ $active_page = 'stock_in';
           <div id="itemsContainer">
             <div class="item-row" id="item-0">
               <div class="row g-2">
-                <div class="col-sm-5">
+                <div class="col-sm-4">
                   <label class="form-label form-label-sm">Product <span class="text-danger">*</span></label>
                   <select name="product_id[]" class="form-select form-select-sm" required>
                     <option value="">— Product —</option>
@@ -392,20 +398,24 @@ $active_page = 'stock_in';
                     <?php endwhile; ?>
                   </select>
                 </div>
-                <div class="col-sm-4">
+                <div class="col-sm-3">
                   <label class="form-label form-label-sm">Serial No <span class="text-danger">*</span></label>
                   <input type="text" name="serial_no[]" class="form-control form-control-sm" placeholder="SN-0001" required>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-sm-2">
                   <label class="form-label form-label-sm">Part No <span class="text-danger">*</span></label>
                   <input type="text" name="part_no[]" class="form-control form-control-sm" placeholder="PN-0001" required>
+                </div>
+                <div class="col-sm-3">
+                  <label class="form-label form-label-sm">Location</label>
+                  <input type="text" name="storage_location[]" class="form-control form-control-sm" placeholder="e.g. Rack A-3">
                 </div>
               </div>
             </div>
           </div>
           <div class="text-muted mt-2" style="font-size:.75rem;"><i class="bi bi-info-circle me-1"></i>Duplicate serial numbers will be skipped automatically.</div>
         </div>
-        <div class="modal-footer" style="border-top:1px solid #f0f0f0;padding:14px 20px;">
+        <div class="modal-footer" style="border-top:1px solid #f0f0f0;padding:14px 20px;flex-shrink:0;">
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-dark btn-sm px-4"><i class="bi bi-check-lg me-1"></i>Submit Stock In</button>
         </div>
@@ -437,17 +447,21 @@ function addItemRow() {
       <i class="bi bi-x-lg"></i>
     </button>
     <div class="row g-2">
-      <div class="col-sm-5">
+      <div class="col-sm-4">
         <label class="form-label form-label-sm">Product <span class="text-danger">*</span></label>
         <select name="product_id[]" class="form-select form-select-sm" required>${productOptions}</select>
       </div>
-      <div class="col-sm-4">
+      <div class="col-sm-3">
         <label class="form-label form-label-sm">Serial No <span class="text-danger">*</span></label>
         <input type="text" name="serial_no[]" class="form-control form-control-sm" placeholder="SN-000${idx+1}" required>
       </div>
-      <div class="col-sm-3">
+      <div class="col-sm-2">
         <label class="form-label form-label-sm">Part No</label>
         <input type="text" name="part_no[]" class="form-control form-control-sm" placeholder="Optional">
+      </div>
+      <div class="col-sm-3">
+        <label class="form-label form-label-sm">Location</label>
+        <input type="text" name="storage_location[]" class="form-control form-control-sm" placeholder="e.g. Rack A-3">
       </div>
     </div>`;
   container.appendChild(div);

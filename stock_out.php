@@ -228,7 +228,7 @@ function soutPagUrl($p) {
           <thead>
             <tr style="background:#1a1a2e;">
               <th style="padding:9px 18px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;white-space:nowrap;width:200px;">Buyer / Date</th>
-              <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Product</th>
+              <th style="padding:9px 74px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Product</th>
               <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Serial No</th>
               <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Part No</th>
               <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Out Date</th>
