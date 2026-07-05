@@ -1,6 +1,7 @@
 <?php
 require 'auth.php';
 require 'mydb.php';
+require 'huid_helper.php';
 
 $GOLD_ELEMENTS   = ['Silver','Platinum','Bismuth','Copper','Palladium','Nickel','Zinc','Antimony','Indium','Cadmium','Iron','Titanium','Iridium','Tin','Ruthenium','Rhodium','Lead','Vanadium','Cobalt','Osmium','Manganese'];
 $SILVER_ELEMENTS = ['Copper','Palladium','Nickel','Zinc','Antimony','Indium','Cadmium','Iron','Titanium','Iridium','Tin','Ruthenium','Rhodium','Lead','Vanadium','Cobalt','Osmium','Manganese'];
@@ -168,6 +169,8 @@ if (isset($_POST['submit_report'])) {
         mysqli_stmt_execute($stmt);
         $report_id = mysqli_insert_id($conn);
         mysqli_stmt_close($stmt);
+
+        assignHuid($conn, $report_id);
 
         $upload_dir = __DIR__ . '/uploads/tunch_reports/';
         if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
@@ -785,9 +788,13 @@ if (isset($_GET['report_id'])) {
                             <span class="info-label">Sample Weight</span><span class="info-colon">:</span>
                             <span class="info-value"><?= htmlspecialchars($report_data['weight']) ?> Gm<span class="weight-conversion" id="weightConversion"></span></span>
                         </div>
-                        <div class="customer-info-line">
+                        <!-- <div class="customer-info-line">
                             <span class="info-label">Bill No</span><span class="info-colon">:</span>
                             <span class="info-value"><?= htmlspecialchars($report_data['order_id']) ?></span>
+                        </div> -->
+                        <div class="customer-info-line">
+                            <span class="info-label">HUID</span><span class="info-colon">:</span>
+                            <span class="info-value"><?= htmlspecialchars($report_data['huid'] ?? '') ?></span>
                         </div>
                     </td>
                     <td style="width:28%;vertical-align:top;text-align:center;padding-bottom:0;" class="qr-section">
@@ -891,7 +898,7 @@ if (isset($_GET['report_id'])) {
     }
     document.getElementById('weightConversion').textContent = convertGramToVoriAna(<?= floatval($report_data['weight']) ?>);
     new QRCode(document.getElementById("qrcode"), {
-        text: "https://www.app.rajaiswari.com/report_varification.php?id=<?= $report_id ?>",
+        text: "https://rajaiswari.com/search_report.php?huid=<?= htmlspecialchars($report_data['huid']) ?>",
         width: 90, height: 90
     });
     async function copyFullReportImage() {

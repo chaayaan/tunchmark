@@ -1,6 +1,7 @@
 <?php
 require 'auth.php';
 require 'mydb.php';
+require 'huid_helper.php';
 
 $order_data     = null;
 $bill_items     = [];
@@ -104,6 +105,8 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
         mysqli_stmt_execute($stmt);
         $report_id = mysqli_insert_id($conn);
         mysqli_stmt_close($stmt);
+
+        assignHuid($conn, $report_id);
 
         // ── Save image ─────────────────────────────────────────────────────
         if ($photo_info !== null) {
@@ -514,10 +517,15 @@ if (isset($_GET['report_id'])) {
                         <span class="info-colon">:</span>
                         <span class="info-value"><?= htmlspecialchars($report_data['customer_name']) ?></span>
                     </div>
-                    <div class="customer-info-line">
+                    <!-- <div class="customer-info-line">
                         <span class="info-label">Bill No</span>
                         <span class="info-colon">:</span>
                         <span class="info-value"><?= htmlspecialchars($report_data['order_id']) ?></span>
+                    </div> -->
+                    <div class="customer-info-line">
+                        <span class="info-label">HUID</span>
+                        <span class="info-colon">:</span>
+                        <span class="info-value"><?= htmlspecialchars($report_data['huid'] ?? '') ?></span>
                     </div>
                     <div class="customer-info-line">
                         <span class="info-label">Quantity</span>
@@ -639,7 +647,7 @@ if (isset($_GET['report_id'])) {
         });
 
         new QRCode(document.getElementById("qrcode"), {
-            text: "https://www.app.rajaiswari.com/report_varification.php?id=<?= $report_id ?>",
+            text: "https://rajaiswari.com/search_report.php?huid=<?= htmlspecialchars($report_data['huid']) ?>",
             width: 100, height: 100
         });
 
