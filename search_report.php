@@ -268,7 +268,7 @@
         .search-row{display:flex;gap:8px;}
         .search-input{
             flex:1;height:42px;padding:0 12px;border:1.5px solid var(--rg-gold-border);border-radius:8px;
-            font-family:'Outfit',sans-serif;font-size:0.9rem;text-transform:uppercase;letter-spacing:.05em;
+            font-family:'Outfit',sans-serif;font-size:0.9rem;letter-spacing:.05em;
             outline:none;transition:border-color .15s;background:#fff;color:var(--rg-text);
             min-width:0;
         }
@@ -539,7 +539,7 @@
     <div class="search-bar-wrap">
         <div class="search-title">Verify Your Report</div>
         <div class="search-row">
-            <input type="text" id="huidInput" class="search-input" placeholder="Enter HUID e.g. 2226B9" maxlength="6" autocapitalize="characters">
+            <input type="text" id="huidInput" class="search-input" placeholder="Enter HUID e.g. 2226B9" maxlength="6">
             <button id="searchBtn" class="search-btn">Search</button>
             <button id="scanBtn" class="scan-btn" title="Scan QR code with camera">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -578,7 +578,7 @@
 <script>
     // ═══ CONFIG: point these at your main domain ═══
     const API_URL    = 'https://app.rajaiswari.com/api_report_lookup.php';
-    const ASSET_BASE = 'https://app.rajaiswari.com/'; // for report pad.png / Varifiedstamp.png
+    const ASSET_BASE = ''; // for report pad.png / Varifiedstamp.png
 
     /* ── Anti-copy ── */
     document.addEventListener('keydown', function(e) {
@@ -604,7 +604,10 @@
     const btn        = document.getElementById('searchBtn');
     const resultArea = document.getElementById('resultArea');
 
-    input.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
+    // Note: intentionally NOT forcing uppercase here — HUID codes are
+    // case-sensitive (charset includes both e.g. 'P' and 'p' as distinct
+    // symbols), so rewriting the user's typed case would make some valid
+    // HUIDs impossible to enter.
     input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
     btn.addEventListener('click', () => doSearch());
 
@@ -625,7 +628,7 @@
     }
 
     async function doSearch(huidFromUrl) {
-        const huid = (huidFromUrl || input.value).trim().toUpperCase();
+        const huid = (huidFromUrl || input.value).trim();
         input.value = huid;
 
         if (huid.length !== 6) {

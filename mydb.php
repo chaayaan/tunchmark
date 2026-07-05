@@ -12,6 +12,8 @@
         die("Connection failed: " . mysqli_connect_error());
     }
 
+    mysqli_set_charset($conn, 'utf8mb4');
+    
     /* SET Bangladesh timezone (SESSION LEVEL) */
     mysqli_query($conn, "SET time_zone = '+06:00'");
 ?>
