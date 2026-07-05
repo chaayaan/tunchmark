@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Hallmark & Tunch Report Authenticity | Rajaiswari</title>
+    <title>Verify Hallmark & Tunch Report Authenticity | Rajaiswari Gold Testing Center Chattogram</title>
 
     <meta name="description" content="Check if your hallmark report or tunch (gold purity) test report is genuine and authentic. Official online report verification system by Rajaiswari Gold Testing Center (রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার), Chattogram, Bangladesh — enter your HUID to confirm authenticity.">
 
@@ -14,10 +14,10 @@
 
     <meta name="robots" content="index, follow, max-image-preview:large">
     <meta name="googlebot" content="index, follow">
-    <link rel="canonical" href="https://app.rajaiswari.com/report-verification">
-    <link rel="alternate" hreflang="bn-BD" href="https://app.rajaiswari.com/report-verification">
-    <link rel="alternate" hreflang="en-BD" href="https://app.rajaiswari.com/report-verification">
-    <link rel="alternate" hreflang="x-default" href="https://app.rajaiswari.com/report-verification">
+    <link rel="canonical" href="https://rajaiswari.com/search_report.php">
+    <link rel="alternate" hreflang="bn-BD" href="https://rajaiswari.com/search_report.php">
+    <link rel="alternate" hreflang="en-BD" href="https://rajaiswari.com/search_report.php">
+    <link rel="alternate" hreflang="x-default" href="https://rajaiswari.com/search_report.php">
 
     <!-- Geo targeting: Chattogram / Chittagong, Bangladesh -->
     <meta name="geo.region" content="BD-BD">
@@ -31,8 +31,8 @@
     <meta property="og:site_name" content="Rajaiswari Gold Testing Center">
     <meta property="og:title" content="Verify Hallmark & Tunch Report Authenticity | Rajaiswari Gold Testing Center">
     <meta property="og:description" content="Confirm whether your hallmark or tunch (purity) test report is genuine. Official verification by Rajaiswari Gold Testing Center (রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার), Chattogram — enter your HUID.">
-    <meta property="og:url" content="https://app.rajaiswari.com/report-verification">
-    <meta property="og:image" content="https://app.rajaiswari.com/favicon.png">
+    <meta property="og:url" content="https://rajaiswari.com/search_report.php">
+    <meta property="og:image" content="https://rajaiswari.com/favicon.png">
     <meta property="og:locale" content="en_BD">
     <meta property="og:locale:alternate" content="bn_BD">
 
@@ -46,12 +46,12 @@
     {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
-    "@id": "https://app.rajaiswari.com/#business",
+    "@id": "https://rajaiswari.com/#business",
     "name": "Rajaiswari Gold Testing Center",
     "alternateName": ["রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার", "Rajaiswari Hallmark & Tunch Testing Center"],
     "description": "Rajaiswari Gold Testing Center (রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার), Chattogram, Bangladesh — the only official source for verifying whether a hallmark report or tunch (gold purity) test report bearing its HUID is genuine and authentic.",
-    "url": "https://app.rajaiswari.com/report-verification",
-    "image": "https://app.rajaiswari.com/favicon.png",
+    "url": "https://rajaiswari.com/search_report.php",
+    "image": "https://rajaiswari.com/favicon.png",
     "address": {
         "@type": "PostalAddress",
         "addressLocality": "Chattogram",
@@ -78,13 +78,14 @@
     "@type": "Service",
     "serviceType": "Hallmark and Tunch Report Authenticity Verification",
     "provider": {
-        "@id": "https://app.rajaiswari.com/#business"
+        "@id": "https://rajaiswari.com/#business"
     },
     "areaServed": "Chattogram, Chittagong, Bangladesh",
     "name": "Hallmark & Tunch Report Authenticity Verification",
     "description": "Enter your HUID to confirm whether a hallmark report or tunch (gold purity) test report was genuinely issued by Rajaiswari Gold Testing Center (রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার), Chattogram. This service is exclusively for authenticity verification of reports issued by Rajaiswari.",
-    "url": "https://app.rajaiswari.com/report-verification"
+    "url": "https://rajaiswari.com/search_report.php"
     }
+    </script>
     </script>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -279,8 +280,49 @@
         }
         .search-btn:hover{background:#9c7118;}
         .search-btn:disabled{background:#c9b98a;cursor:not-allowed;}
+        .scan-btn{
+            height:42px;padding:0 16px;border:none;border-radius:8px;background:#25D366;
+            color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;transition:background .15s,opacity .15s;
+            white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:6px;
+        }
+        .scan-btn:hover{background:#1fb457;}
+        .scan-btn:disabled{background:#a9d9bd;cursor:not-allowed;}
+        .scan-btn svg{flex-shrink:0;}
         .search-hint{text-align:center;font-size:.72rem;color:var(--rg-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
         .loading{text-align:center;color:var(--rg-muted);font-size:.9rem;margin-top:10px;}
+
+        /* ── QR Scanner Modal ───────────────────────────── */
+        .scan-modal-overlay{
+            display:none;position:fixed;inset:0;z-index:10000;
+            background:rgba(10,10,10,0.88);
+            align-items:center;justify-content:center;padding:16px;
+        }
+        .scan-modal-overlay.rg-open{display:flex;}
+        .scan-modal-box{
+            width:100%;max-width:380px;background:#fff;border-radius:14px;
+            overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.4);
+        }
+        .scan-modal-head{
+            padding:14px 18px;display:flex;align-items:center;justify-content:space-between;
+            background:var(--rg-dark);
+        }
+        .scan-modal-title{color:#fff;font-weight:600;font-size:0.92rem;letter-spacing:.02em;}
+        .scan-modal-close{
+            background:none;border:none;color:#fff;font-size:1.4rem;line-height:1;
+            cursor:pointer;padding:2px 6px;border-radius:6px;transition:background .15s;
+        }
+        .scan-modal-close:hover{background:rgba(255,255,255,0.12);}
+        #qrReaderBox{width:100%;background:#000;min-height:260px;}
+        #qrReaderBox video{width:100%!important;}
+        .scan-modal-msg{
+            padding:10px 18px;font-size:0.8rem;text-align:center;min-height:20px;
+            font-family:'Outfit',sans-serif;
+        }
+        .scan-modal-msg.rg-error{color:#dc2626;}
+        .scan-modal-msg.rg-info{color:var(--rg-muted);}
+        .scan-modal-hint{
+            padding:0 18px 16px;font-size:0.72rem;color:var(--rg-muted);text-align:center;
+        }
 
         /* ── Report Card Styles ─────────────────────────── */
         .report-card-wrapper {
@@ -482,6 +524,7 @@
             .search-title { font-size: 1.45rem; }
             .search-input { height: 40px; font-size: 0.85rem; padding: 0 10px; }
             .search-btn { height: 40px; font-size: 0.8rem; padding: 0 14px; }
+            .scan-btn { height: 40px; font-size: 0.8rem; padding: 0 12px; }
             .search-hint { font-size: 0.68rem; }
         }
     </style>
@@ -498,18 +541,40 @@
         <div class="search-row">
             <input type="text" id="huidInput" class="search-input" placeholder="Enter HUID e.g. 2226B9" maxlength="6" autocapitalize="characters">
             <button id="searchBtn" class="search-btn">Search</button>
+            <button id="scanBtn" class="scan-btn" title="Scan QR code with camera">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
+                    <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
+                    <rect x="7" y="7" width="10" height="10" rx="1"/>
+                </svg>
+                <span>Scan</span>
+            </button>
         </div>
-        <div class="search-hint">Enter HUID or scan QR code</div>
+        <div class="search-hint">Enter HUID or scan the QR code on your report</div>
     </div>
 
     <div id="resultArea"></div>
 
 </div><!-- /rg-page-body -->
 
+<!-- ══ QR SCANNER MODAL ══ -->
+<div class="scan-modal-overlay" id="scanModal">
+    <div class="scan-modal-box">
+        <div class="scan-modal-head">
+            <span class="scan-modal-title">Scan Report QR Code</span>
+            <button class="scan-modal-close" id="scanCloseBtn" aria-label="Close scanner">&times;</button>
+        </div>
+        <div id="qrReaderBox"></div>
+        <div class="scan-modal-msg rg-info" id="scanMsg">Point your camera at the QR code on the report.</div>
+        <div class="scan-modal-hint">Only valid Rajaiswari report QR codes will be accepted.</div>
+    </div>
+</div>
+
 <?php include 'footer.php'; ?>
 
 <!-- ══ SCRIPTS ══ -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script>
     // ═══ CONFIG: point these at your main domain ═══
     const API_URL    = 'https://app.rajaiswari.com/api_report_lookup.php';
@@ -768,6 +833,89 @@
         setTimeout(scaleCard, 300);
         window.addEventListener('resize', scaleCard);
     }
+
+    /* ══════════════════════════════════════════════════════════════════
+       QR CAMERA SCANNER — opens device camera, decodes QR, validates the
+       decoded text strictly against the expected report-verification URL
+       pattern before accepting it. Anything else is rejected.
+       ══════════════════════════════════════════════════════════════════ */
+
+    // Must match exactly: https://rajaiswari.com/search_report.php?huid=XXXXXX
+    // where XXXXXX is 6 chars drawn only from the approved HUID charset
+    // (no 0, 1, I, O, l — avoids visually ambiguous characters).
+    const HUID_CHARSET   = '23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    const HUID_URL_REGEX = new RegExp(
+        '^https:\\/\\/rajaiswari\\.com\\/search_report\\.php\\?huid=([' + HUID_CHARSET + ']{6})$'
+    );
+
+    const scanBtn      = document.getElementById('scanBtn');
+    const scanModal     = document.getElementById('scanModal');
+    const scanCloseBtn  = document.getElementById('scanCloseBtn');
+    const scanMsg       = document.getElementById('scanMsg');
+    let html5QrCode      = null;
+    let scannerRunning   = false;
+
+    function setScanMsg(text, type) {
+        scanMsg.textContent = text;
+        scanMsg.className = 'scan-modal-msg ' + (type === 'error' ? 'rg-error' : 'rg-info');
+    }
+
+    // Extracts and returns the 6-char HUID ONLY if the full scanned string
+    // matches the exact expected URL shape; otherwise returns null.
+    function extractValidHuid(scannedText) {
+        if (!scannedText) return null;
+        const match = scannedText.trim().match(HUID_URL_REGEX);
+        return match ? match[1] : null;
+    }
+
+    function openScanner() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            alert('Camera scanning is not supported on this browser/device. Please enter the HUID manually.');
+            return;
+        }
+        scanModal.classList.add('rg-open');
+        setScanMsg('Point your camera at the QR code on the report.', 'info');
+
+        html5QrCode = new Html5Qrcode('qrReaderBox');
+        html5QrCode.start(
+            { facingMode: 'environment' }, // prefer rear camera
+            { fps: 10, qrbox: { width: 230, height: 230 } },
+            onScanFrame,
+            () => { /* per-frame decode miss — ignore, keep scanning */ }
+        ).then(() => {
+            scannerRunning = true;
+        }).catch(() => {
+            setScanMsg('Camera access denied or unavailable. Please allow camera permission and try again.', 'error');
+        });
+    }
+
+    function closeScanner() {
+        scanModal.classList.remove('rg-open');
+        if (html5QrCode && scannerRunning) {
+            html5QrCode.stop()
+                .then(() => html5QrCode.clear())
+                .catch(() => {});
+        }
+        scannerRunning = false;
+        html5QrCode = null;
+    }
+
+    function onScanFrame(decodedText) {
+        const huid = extractValidHuid(decodedText);
+        if (!huid) {
+            setScanMsg('This QR code is not a valid Rajaiswari report code.', 'error');
+            return; // keep the camera running so the user can try another code
+        }
+        setScanMsg('Report code recognized — loading...', 'info');
+        closeScanner();
+        doSearch(huid);
+    }
+
+    scanBtn.addEventListener('click', openScanner);
+    scanCloseBtn.addEventListener('click', closeScanner);
+    scanModal.addEventListener('click', function(e) {
+        if (e.target === scanModal) closeScanner(); // click outside box closes it
+    });
 
     /* ── Auto-run search if ?huid= is present in the URL (for QR code scans) ── */
     (function initFromUrl() {
