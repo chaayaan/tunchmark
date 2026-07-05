@@ -3,7 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Report Verification — Rajaiswari</title>
+    <title>Verify Hallmark & Tunch Report Authenticity | Rajaiswari</title>
+
+    <meta name="description" content="Check if your hallmark report or tunch (gold purity) test report is genuine and authentic. Official online report verification system by Rajaiswari Gold Testing Center (রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার), Chattogram, Bangladesh — enter your HUID to confirm authenticity.">
+
+    <meta name="keywords" content="
+    hallmark report verification, tunch report verification, is this hallmark report genuine, is this tunch report authentic, gold report authenticity check, HUID verification Bangladesh, hallmark report check Chattogram, tunch test report check Chittagong, Rajaiswari Gold Testing Center, রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার,
+    হলমার্ক রিপোর্ট আসল না নকল, তুচ রিপোর্ট আসল কিনা, হলমার্ক রিপোর্ট যাচাই, তুচ রিপোর্ট যাচাই, রিপোর্ট আসল কিনা যাচাই, স্বর্ণের রিপোর্ট সত্যতা যাচাই, হলমার্ক সত্যতা যাচাই চট্টগ্রাম, তুচ সত্যতা যাচাই চট্টগ্রাম, HUID যাচাই, হলমার্ক রিপোর্ট চেক, তুচ রিপোর্ট চেক, স্বর্ণের রিপোর্ট আসল কিনা, রিপোর্ট ভেরিফিকেশন চট্টগ্রাম, রাজঐশ্বরী রিপোর্ট যাচাই, halmark report asol na nokol, tunch report jachai, report authentic kina check
+    ">
+
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="googlebot" content="index, follow">
+    <link rel="canonical" href="https://app.rajaiswari.com/report-verification">
+    <link rel="alternate" hreflang="bn-BD" href="https://app.rajaiswari.com/report-verification">
+    <link rel="alternate" hreflang="en-BD" href="https://app.rajaiswari.com/report-verification">
+    <link rel="alternate" hreflang="x-default" href="https://app.rajaiswari.com/report-verification">
+
+    <!-- Geo targeting: Chattogram / Chittagong, Bangladesh -->
+    <meta name="geo.region" content="BD-BD">
+    <meta name="geo.placename" content="Chattogram, Chittagong, Bangladesh">
+    <meta name="geo.position" content="22.3569;91.7832">
+    <meta name="ICBM" content="22.3569, 91.7832">
+    <meta name="language" content="en, bn">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Rajaiswari Gold Testing Center">
+    <meta property="og:title" content="Verify Hallmark & Tunch Report Authenticity | Rajaiswari Gold Testing Center">
+    <meta property="og:description" content="Confirm whether your hallmark or tunch (purity) test report is genuine. Official verification by Rajaiswari Gold Testing Center (রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার), Chattogram — enter your HUID.">
+    <meta property="og:url" content="https://app.rajaiswari.com/report-verification">
+    <meta property="og:image" content="https://app.rajaiswari.com/favicon.png">
+    <meta property="og:locale" content="en_BD">
+    <meta property="og:locale:alternate" content="bn_BD">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Verify Hallmark & Tunch Report Authenticity | Rajaiswari Gold Testing Center">
+    <meta name="twitter:description" content="Check if your hallmark or tunch report is genuine — official verification system by Rajaiswari Gold Testing Center, Chattogram.">
+
+    <!-- Structured Data: LocalBusiness -->
+    <script type="application/ld+json">
+    {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": "https://app.rajaiswari.com/#business",
+    "name": "Rajaiswari Gold Testing Center",
+    "alternateName": ["রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার", "Rajaiswari Hallmark & Tunch Testing Center"],
+    "description": "Rajaiswari Gold Testing Center (রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার), Chattogram, Bangladesh — the only official source for verifying whether a hallmark report or tunch (gold purity) test report bearing its HUID is genuine and authentic.",
+    "url": "https://app.rajaiswari.com/report-verification",
+    "image": "https://app.rajaiswari.com/favicon.png",
+    "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Chattogram",
+        "addressRegion": "Chittagong",
+        "addressCountry": "BD"
+    },
+    "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": "22.3569",
+        "longitude": "91.7832"
+    },
+    "areaServed": [
+        { "@type": "City", "name": "Chattogram" },
+        { "@type": "City", "name": "Chittagong" }
+    ],
+    "knowsAbout": ["Hallmark Report Authenticity", "Tunch Report Authenticity", "Gold Purity Verification", "HUID Verification"]
+    }
+    </script>
+
+    <!-- Structured Data: Service -->
+    <script type="application/ld+json">
+    {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    "serviceType": "Hallmark and Tunch Report Authenticity Verification",
+    "provider": {
+        "@id": "https://app.rajaiswari.com/#business"
+    },
+    "areaServed": "Chattogram, Chittagong, Bangladesh",
+    "name": "Hallmark & Tunch Report Authenticity Verification",
+    "description": "Enter your HUID to confirm whether a hallmark report or tunch (gold purity) test report was genuinely issued by Rajaiswari Gold Testing Center (রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার), Chattogram. This service is exclusively for authenticity verification of reports issued by Rajaiswari.",
+    "url": "https://app.rajaiswari.com/report-verification"
+    }
+    </script>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
