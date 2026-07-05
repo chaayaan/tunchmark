@@ -28,7 +28,7 @@
 
         /* ── Reset & Base ───────────────────────────────── */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; font-size: 16px; }
+        html { scroll-behavior: smooth; font-size: 16px; overflow-x: hidden; }
         body {
             font-family: 'Outfit', sans-serif;
             background: var(--rg-bg);
@@ -165,35 +165,39 @@
 
         /* ── Page layout ────────────────────────────────── */
         .rg-page-body {
-            padding-top: calc(var(--rg-nav-h) + 40px);
+            padding-top: calc(var(--rg-nav-h) + 10px);
             padding-bottom: 60px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
             background: #f1f3f6;
+            width: 100%;
+            overflow-x: hidden;
         }
 
         /* ── Search bar ─────────────────────────────────── */
         .search-bar-wrap{
-            width:100%;max-width:520px;margin:0 auto 34px;padding:0 16px;
-            display:flex;flex-direction:column;gap:14px;
+            width:100%;max-width:520px;margin:0 auto 20px;padding:0 16px;
+            display:flex;flex-direction:column;gap:10px;
         }
-        .search-title{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:600;color:var(--rg-gold);text-align:center;}
-        .search-row{display:flex;gap:10px;}
+        .search-title{font-family:'Cormorant Garamond',serif;font-size:1.75rem;font-weight:700;color:#A6321D;text-align:center;}
+        .search-row{display:flex;gap:8px;}
         .search-input{
-            flex:1;height:48px;padding:0 16px;border:1.5px solid var(--rg-gold-border);border-radius:8px;
-            font-family:'Outfit',sans-serif;font-size:1rem;text-transform:uppercase;letter-spacing:.05em;
+            flex:1;height:42px;padding:0 12px;border:1.5px solid var(--rg-gold-border);border-radius:8px;
+            font-family:'Outfit',sans-serif;font-size:0.9rem;text-transform:uppercase;letter-spacing:.05em;
             outline:none;transition:border-color .15s;background:#fff;color:var(--rg-text);
+            min-width:0;
         }
         .search-input:focus{border-color:var(--rg-gold);}
         .search-btn{
-            height:48px;padding:0 24px;border:none;border-radius:8px;background:var(--rg-gold);
-            color:#fff;font-weight:600;font-size:.95rem;cursor:pointer;transition:background .15s;white-space:nowrap;
+            height:42px;padding:0 18px;border:none;border-radius:8px;background:var(--rg-gold);
+            color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;transition:background .15s;white-space:nowrap;
+            flex-shrink:0;
         }
         .search-btn:hover{background:#9c7118;}
         .search-btn:disabled{background:#c9b98a;cursor:not-allowed;}
-        .search-hint{text-align:center;font-size:.78rem;color:var(--rg-muted);}
+        .search-hint{text-align:center;font-size:.72rem;color:var(--rg-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
         .loading{text-align:center;color:var(--rg-muted);font-size:.9rem;margin-top:10px;}
 
         /* ── Report Card Styles ─────────────────────────── */
@@ -203,6 +207,9 @@
             justify-content: center;
             padding: 0 16px;
         }
+        @media (max-width: 600px) {
+            .report-card-wrapper { padding: 0; }
+        }
 
         *, *::before, *::after {
             -webkit-user-select: none; -moz-user-select: none;
@@ -210,8 +217,21 @@
         }
         img { pointer-events: none; -webkit-user-drag: none; }
 
-        .scale-wrapper { width: 100%; display: flex; justify-content: center; align-items: flex-start; }
-        .scale-inner { transform-origin: top center; }
+        /* ── Scale wrapper: centers the (possibly shrunk) report card and
+               never lets it force horizontal scroll on the page ── */
+        .scale-wrapper {
+            width: 100%;
+            max-width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            overflow: hidden;
+        }
+        /* transform-origin is top-left because the JS resizes the LAYOUT
+           box (#scaleInner width/height) to match the scaled visual size —
+           scaling from the corner keeps that box calculation simple and
+           avoids leftover blank space on the right on mobile */
+        .scale-inner { transform-origin: top left; }
 
         .report-card {
             width: 680px;
@@ -374,10 +394,13 @@
             .rg-footer-top { grid-template-columns: 1fr 1fr; gap: 28px; }
             .rg-footer-col-brand { grid-column: span 2; }
             .rg-footer-bottom { flex-direction: column; gap: 4px; }
-        }
-        @media (max-width: 400px) {
-            .rg-footer-top { grid-template-columns: 1fr; }
-            .rg-footer-col-brand { grid-column: span 1; }
+            /* Tighter search bar on small phones */
+            .rg-page-body { padding-top: calc(var(--rg-nav-h) + 12px); }
+            .search-bar-wrap { margin-bottom: 14px; gap: 8px; padding: 0 12px; }
+            .search-title { font-size: 1.45rem; }
+            .search-input { height: 40px; font-size: 0.85rem; padding: 0 10px; }
+            .search-btn { height: 40px; font-size: 0.8rem; padding: 0 14px; }
+            .search-hint { font-size: 0.68rem; }
         }
     </style>
 </head>
@@ -394,7 +417,7 @@
             <input type="text" id="huidInput" class="search-input" placeholder="Enter HUID e.g. 2226B9" maxlength="6" autocapitalize="characters">
             <button id="searchBtn" class="search-btn">Search</button>
         </div>
-        <div class="search-hint">Enter the 6-character HUID printed on your report, or scan its QR code</div>
+        <div class="search-hint">Enter HUID or scan QR code</div>
     </div>
 
     <div id="resultArea"></div>
@@ -609,36 +632,58 @@
         }
 
         resultArea.innerHTML = `
-            <div class="scale-wrapper">
-                <div class="scale-inner" id="scaleInner">
-                    <div class="report-card ${d.report_type === 'hallmark' ? 'hallmark' : ''}" id="reportCard">
-                        <img src="${ASSET_BASE}report pad.png" alt="" class="report-pad-bg" aria-hidden="true">
-                        <div class="report-card-content">${innerHtml}</div>
+            <div class="report-card-wrapper">
+                <div class="scale-wrapper">
+                    <div class="scale-inner" id="scaleInner">
+                        <div class="report-card ${d.report_type === 'hallmark' ? 'hallmark' : ''}" id="reportCard">
+                            <img src="${ASSET_BASE}report pad.png" alt="" class="report-pad-bg" aria-hidden="true">
+                            <div class="report-card-content">${innerHtml}</div>
+                        </div>
                     </div>
                 </div>
             </div>`;
 
         new QRCode(document.getElementById('qrcode'), { text: verifyUrl, width: 90, height: 90 });
 
-        /* ── Scale card to fit small screens (same behaviour as report_varification.php) ── */
+        /* ── Scale card to fill the available mobile width (no leftover
+               blank space) while staying centered and fully visible ── */
         function scaleCard() {
             var inner = document.getElementById('scaleInner');
             var card  = document.getElementById('reportCard');
             if (!inner || !card) return;
-            var vw     = document.documentElement.clientWidth;
-            var padded = vw - 32;
+
+            var vw      = document.documentElement.clientWidth;
+            var sidePad = vw <= 600 ? 0 : 32; // edge-to-edge on phones, small margin on tablet/desktop
+            var padded  = vw - (sidePad * 2);
+
             if (padded >= cardWidth) {
-                inner.style.transform    = 'none';
-                inner.style.marginBottom = '0';
+                // Room for full size (desktop/tablet): no scaling needed
+                inner.style.transform = 'none';
+                inner.style.width     = '';
+                inner.style.height    = '';
                 return;
             }
+
             var scale = padded / cardWidth;
-            var cardH = card.getBoundingClientRect().height || card.offsetHeight;
+            // offsetHeight is a LAYOUT measurement (unaffected by the
+            // transform already applied to #scaleInner), so it stays the
+            // true natural height on every call — this prevents the scale
+            // from compounding each time the window resizes.
+            var cardH = card.offsetHeight;
+
             inner.style.transform       = 'scale(' + scale + ')';
-            inner.style.transformOrigin = 'top center';
-            inner.style.marginBottom    = Math.round((scale - 1) * cardH) + 'px';
+            inner.style.transformOrigin = 'top left';
+            // Shrink the LAYOUT box itself to match the scaled visual size so
+            // the flex wrapper centers it correctly with no blank space.
+            inner.style.width  = padded + 'px';
+            inner.style.height = Math.round((cardH) * scale) + 'px';
         }
+
+        // Run once now, and once more after images/fonts settle (their load
+        // can change the card's natural height, which changes the scale math).
         scaleCard();
+        window.addEventListener('load', scaleCard);
+        setTimeout(scaleCard, 300);
         window.addEventListener('resize', scaleCard);
     }
 
