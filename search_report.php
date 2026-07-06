@@ -9,7 +9,7 @@
 
     <meta name="keywords" content="
     hallmark report verification, tunch report verification, is this hallmark report genuine, is this tunch report authentic, gold report authenticity check, HUID verification Bangladesh, hallmark report check Chattogram, tunch test report check Chittagong, Rajaiswari Gold Testing Center, রাজঐশ্বরী গোল্ড টেস্টিং সেন্টার,
-    হলমার্ক রিপোর্ট আসল না নকল, তুচ রিপোর্ট আসল কিনা, হলমার্ক রিপোর্ট যাচাই, তুচ রিপোর্ট যাচাই, রিপোর্ট আসল কিনা যাচাই, স্বর্ণের রিপোর্ট সত্যতা যাচাই, হলমার্ক সত্যতা যাচাই চট্টগ্রাম, তুচ সত্যতা যাচাই চট্টগ্রাম, HUID যাচাই, হলমার্ক রিপোর্ট চেক, তুচ রিপোর্ট চেক, স্বর্ণের রিপোর্ট আসল কিনা, রিপোর্ট ভেরিফিকেশন চট্টগ্রাম, রাজঐশ্বরী রিপোর্ট যাচাই, halmark report asol na nokol, tunch report jachai, report authentic kina check
+    হলমার্ক রিপোর্ট আসল না নকল, টঞ্চ রিপোর্ট আসল কিনা, হলমার্ক রিপোর্ট যাচাই, টঞ্চ রিপোর্ট যাচাই, রিপোর্ট আসল কিনা যাচাই, স্বর্ণের রিপোর্ট সত্যতা যাচাই, হলমার্ক সত্যতা যাচাই চট্টগ্রাম, টঞ্চ সত্যতা যাচাই চট্টগ্রাম, HUID যাচাই, হলমার্ক রিপোর্ট চেক, টঞ্চ রিপোর্ট চেক, স্বর্ণের রিপোর্ট আসল কিনা, রিপোর্ট ভেরিফিকেশন চট্টগ্রাম, রাজঐশ্বরী রিপোর্ট যাচাই, halmark report asol na nokol, tunch report jachai, report authentic kina check
     ">
 
     <meta name="robots" content="index, follow, max-image-preview:large">
@@ -249,7 +249,8 @@
         /* ── Page layout ────────────────────────────────── */
         .rg-page-body {
             padding-top: calc(var(--rg-nav-h) + 10px);
-            padding-bottom: 60px;
+            padding-bottom: 24px;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -264,8 +265,9 @@
             width:100%;max-width:520px;margin:0 auto 20px;padding:0 16px;
             display:flex;flex-direction:column;gap:10px;
         }
-        .search-title{font-family:'Cormorant Garamond',serif;font-size:1.75rem;font-weight:700;color:#A6321D;text-align:center;}
-        .search-row{display:flex;gap:8px;}
+        .search-title{font-family:'Cormorant Garamond',serif;font-size:1.75rem;font-weight:700;color:var(--rg-gold);text-align:center;}
+        .huid-label{display:none;}
+        .search-row{display:flex;gap:8px;align-items:center;}
         .search-input{
             flex:1;height:42px;padding:0 12px;border:1.5px solid var(--rg-gold-border);border-radius:8px;
             font-family:'Outfit',sans-serif;font-size:0.9rem;letter-spacing:.05em;
@@ -276,20 +278,39 @@
         .search-btn{
             height:42px;padding:0 18px;border:none;border-radius:8px;background:var(--rg-gold);
             color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;transition:background .15s;white-space:nowrap;
-            flex-shrink:0;
+            flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:6px;
         }
         .search-btn:hover{background:#9c7118;}
         .search-btn:disabled{background:#c9b98a;cursor:not-allowed;}
+        .search-btn svg{flex-shrink:0;}
         .scan-btn{
             height:42px;padding:0 16px;border:none;border-radius:8px;background:#25D366;
             color:#fff;font-weight:600;font-size:.85rem;cursor:pointer;transition:background .15s,opacity .15s;
-            white-space:nowrap;flex-shrink:0;display:flex;align-items:center;gap:6px;
+            white-space:nowrap;flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:6px;
         }
         .scan-btn:hover{background:#1fb457;}
         .scan-btn:disabled{background:#a9d9bd;cursor:not-allowed;}
         .scan-btn svg{flex-shrink:0;}
         .search-hint{text-align:center;font-size:.72rem;color:var(--rg-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
         .loading{text-align:center;color:var(--rg-muted);font-size:.9rem;margin-top:10px;}
+
+        /* ── Initial info placeholder (shown before any HUID is searched) ── */
+        .info-placeholder{
+            width:100%;max-width:440px;margin:0 auto;padding:0 26px 22px;
+            display:flex;flex-direction:column;align-items:center;gap:10px;
+            text-align:center;opacity:.55;transition:opacity .2s;
+        }
+        .info-placeholder:hover{opacity:.8;}
+        .info-placeholder svg{color:var(--rg-gold);flex-shrink:0;}
+        .info-placeholder p{
+            font-size:.82rem;line-height:1.65;color:var(--rg-muted);font-weight:400;
+            max-width:360px;
+        }
+        .info-placeholder p strong{color:var(--rg-text);font-weight:600;}
+        @media (max-width:600px){
+            .info-placeholder{padding:0 20px 16px;max-width:320px;}
+            .info-placeholder p{font-size:.78rem;}
+        }
 
         /* ── QR Scanner Modal ───────────────────────────── */
         .scan-modal-overlay{
@@ -333,6 +354,13 @@
         }
         @media (max-width: 600px) {
             .report-card-wrapper { padding: 0; }
+        }
+        #resultArea {
+            width: 100%;
+            flex: 1 1 auto;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
         }
 
         *, *::before, *::after {
@@ -442,7 +470,7 @@
             font-size: 12px; color: #6b7280; font-family: 'Times New Roman', Times, serif;
         }
 
-        .error-box { width: 90%; max-width: 500px; background: #fff; border: 1px solid #e4e7ec; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 60px 40px; text-align: center; }
+        .error-box { width: 90%; max-width: 500px; background: #fff; border: 1px solid #e4e7ec; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.06); padding: 0 40px 40px; text-align: center; }
         .error-icon { font-size: 64px; margin-bottom: 20px; }
         .error-box h2 { color: #dc2626; font-size: 22px; margin-bottom: 12px; font-family: sans-serif; }
         .error-box p  { color: #6b7280; font-size: 14px; line-height: 1.7; font-family: sans-serif; }
@@ -521,10 +549,18 @@
             /* Tighter search bar on small phones */
             .rg-page-body { padding-top: calc(var(--rg-nav-h) + 12px); }
             .search-bar-wrap { margin-bottom: 14px; gap: 8px; padding: 0 12px; }
-            .search-title { font-size: 1.45rem; }
+            .search-title { display: none; }
+            .search-row { gap: 6px; }
+            .huid-label {
+                display: inline-block; flex-shrink: 0;
+                font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 0.8rem;
+                letter-spacing: 0.04em; color: var(--rg-gold);
+            }
             .search-input { height: 40px; font-size: 0.85rem; padding: 0 10px; }
-            .search-btn { height: 40px; font-size: 0.8rem; padding: 0 14px; }
-            .scan-btn { height: 40px; font-size: 0.8rem; padding: 0 12px; }
+            .search-btn, .scan-btn {
+                width: 40px; height: 40px; padding: 0; flex-shrink: 0;
+            }
+            .search-btn .btn-text, .scan-btn .btn-text { display: none; }
             .search-hint { font-size: 0.68rem; }
         }
     </style>
@@ -539,15 +575,21 @@
     <div class="search-bar-wrap">
         <div class="search-title">Verify Your Report</div>
         <div class="search-row">
+            <span class="huid-label">HUID</span>
             <input type="text" id="huidInput" class="search-input" placeholder="Enter HUID e.g. 2226B9" maxlength="6">
-            <button id="searchBtn" class="search-btn">Search</button>
+            <button id="searchBtn" class="search-btn" title="Search">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+                </svg>
+                <span class="btn-text">Search</span>
+            </button>
             <button id="scanBtn" class="scan-btn" title="Scan QR code with camera">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/>
                     <path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/>
                     <rect x="7" y="7" width="10" height="10" rx="1"/>
                 </svg>
-                <span>Scan</span>
+                <span class="btn-text">Scan</span>
             </button>
         </div>
         <div class="search-hint">Enter HUID or scan the QR code on your report</div>
@@ -636,7 +678,7 @@
             return;
         }
 
-        btn.disabled = true; btn.textContent = 'Searching...';
+        btn.disabled = true;
         resultArea.innerHTML = '<div class="loading">Looking up report...</div>';
 
         try {
@@ -653,8 +695,19 @@
         } catch (err) {
             renderError('Could not reach the verification server. Please try again.');
         } finally {
-            btn.disabled = false; btn.textContent = 'Search';
+            btn.disabled = false;
         }
+    }
+
+    function renderInitialInfo() {
+        resultArea.innerHTML = `
+            <div class="info-placeholder">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/>
+                    <path d="M9.5 12.5l1.8 1.8L15 10.5"/>
+                </svg>
+                <p>Every genuine Rajaiswari report has a unique <strong>HUID</strong>. Search or scan it here to confirm your hallmark or tunch report is authentic — always verify before buying jewellery.</p>
+            </div>`;
     }
 
     function renderError(msg) {
@@ -920,11 +973,16 @@
         if (e.target === scanModal) closeScanner(); // click outside box closes it
     });
 
-    /* ── Auto-run search if ?huid= is present in the URL (for QR code scans) ── */
+    /* ── Auto-run search if ?huid= is present in the URL (for QR code scans);
+       otherwise show a quiet explanatory placeholder ── */
     (function initFromUrl() {
         const params = new URLSearchParams(location.search);
         const huid = params.get('huid');
-        if (huid) doSearch(huid);
+        if (huid) {
+            doSearch(huid);
+        } else {
+            renderInitialInfo();
+        }
     })();
 </script>
 
