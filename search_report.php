@@ -651,6 +651,23 @@
     // symbols), so rewriting the user's typed case would make some valid
     // HUIDs impossible to enter.
     input.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+    // Only allow characters from the approved HUID charset — strips
+    // emoji, symbols, spaces, or anything else on type/paste, in real time.
+    const HUID_ALLOWED_CHARS = new Set('23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz');
+
+    input.addEventListener('input', function() {
+        const cleaned = [...this.value].filter(ch => HUID_ALLOWED_CHARS.has(ch)).join('');
+        if (cleaned !== this.value) this.value = cleaned;
+    });
+
+    input.addEventListener('paste', function(e) {
+        e.preventDefault();
+        const pasted = (e.clipboardData || window.clipboardData).getData('text');
+        const cleaned = [...pasted].filter(ch => HUID_ALLOWED_CHARS.has(ch)).join('').slice(0, 6);
+        const start = this.selectionStart, end = this.selectionEnd;
+        this.value = this.value.slice(0, start) + cleaned + this.value.slice(end);
+        this.dispatchEvent(new Event('input'));
+    });
     btn.addEventListener('click', () => doSearch());
 
     function escapeHtml(str) {
