@@ -160,6 +160,13 @@ require 'mydb.php';
             font-size: .78rem; font-weight: 700; color: var(--t3);
             font-family: 'DM Mono', monospace;
         }
+        .huid-badge {
+            display: inline-flex; align-items: center;
+            background: var(--s2); border: 1px solid var(--border);
+            border-radius: 5px; padding: 2px 8px;
+            font-size: .78rem; font-weight: 700; color: var(--t2);
+            font-family: 'DM Mono', monospace;
+        }
         .order-badge {
             display: inline-flex; align-items: center;
             background: var(--cyan-bg); border: 1px solid var(--cyan-b);
@@ -170,6 +177,7 @@ require 'mydb.php';
         .cust-name  { font-weight: 600; color: var(--t1); }
         .mono-val   { font-family: 'DM Mono', monospace; font-size: .82rem; }
         .date-val   { font-size: .79rem; color: var(--t3); }
+        .date-val .time-part { color: var(--t4); font-size: .73rem; }
 
         /* service type tags */
         .svc-hallmark {
@@ -213,9 +221,9 @@ require 'mydb.php';
         .act-view        { border-color: var(--blue-b);   color: var(--blue);   }
         .act-view:hover  { background: var(--blue-bg);   }
         .act-edit        { border-color: var(--amber-b);  color: var(--amber);  }
-        .act-edit:hover  { background: var(--amber-bg);  }
-        .act-open        { border-color: var(--green-b);  color: var(--green);  }
-        .act-open:hover  { background: var(--green-bg);  }
+        .act-edit:hover  { background: var(--amber-bg);  }  
+        .act-live        { border-color: var(--cyan-b);   color: var(--cyan);   }
+        .act-live:hover  { background: var(--cyan-bg);   }
 
         /* ── Empty state ───────────────────────── */
         .empty-state { text-align: center; padding: 56px 20px; color: var(--t4); }
@@ -289,7 +297,7 @@ require 'mydb.php';
 
         if (!empty($search)) {
             $s = mysqli_real_escape_string($conn, $search);
-            $conditions[] = "(customer_name LIKE '%$s%' OR item_name LIKE '%$s%' OR order_id LIKE '%$s%')";
+            $conditions[] = "(customer_name LIKE '%$s%' OR item_name LIKE '%$s%' OR order_id LIKE '%$s%' OR huid LIKE '%$s%')";
         }
 
         if ($filter_type === 'hallmark') {
@@ -312,7 +320,7 @@ require 'mydb.php';
 
         // ── Fetch rows ────────────────────────────────────────────────
         $result = mysqli_query($conn,
-            "SELECT id, order_id, customer_name, item_name, quantity, service_name,
+            "SELECT id, huid, order_id, customer_name, item_name, quantity, service_name,
                     weight, gold_purity_percent, silver_purity_percent, karat,
                     hallmark, created_at
              FROM customer_reports $where_clause
@@ -334,7 +342,7 @@ require 'mydb.php';
                         <div class="search-wrap">
                             <i class="fas fa-magnifying-glass si"></i>
                             <input type="text" name="search" class="fc"
-                                   placeholder="Customer name, item, or order ID"
+                                   placeholder="Customer name, item, order ID, or HUID"
                                    value="<?= htmlspecialchars($search) ?>">
                         </div>
                     </div>
@@ -392,7 +400,7 @@ require 'mydb.php';
                 <table class="pos-tbl">
                     <thead>
                         <tr>
-                            <th>ID</th>
+                            <th>HUID</th>
                             <th>Order</th>
                             <th>Customer</th>
                             <th>Item</th>
@@ -402,7 +410,7 @@ require 'mydb.php';
                             <th>Purity</th>
                             <th>Karat</th>
                             <th>Hallmark</th>
-                            <th>Date</th>
+                            <th>Date &amp; Time</th>
                             <th class="c">Actions</th>
                         </tr>
                     </thead>
@@ -425,9 +433,13 @@ require 'mydb.php';
                                 $purityVal   = $row['gold_purity_percent'];
                                 $purityLabel = 'Gold';
                             }
+
+                            $liveViewUrl = 'https://rajaiswari.com/search_report.php?huid=' . urlencode($row['huid']);
                         ?>
                         <tr>
-                            <td><span class="id-badge"><?= $row['id'] ?></span></td>
+                            <td>
+                                <span class="huid-badge"><?= htmlspecialchars($row['huid']) ?></span>
+                            </td>
                             <td><span class="order-badge">#<?= $row['order_id'] ?></span></td>
                             <td><span class="cust-name"><?= htmlspecialchars($row['customer_name']) ?></span></td>
                             <td style="max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
@@ -468,7 +480,12 @@ require 'mydb.php';
                                     <span style="color:var(--t4);">—</span>
                                 <?php endif; ?>
                             </td>
-                            <td><span class="date-val"><?= date('d M Y', strtotime($row['created_at'])) ?></span></td>
+                            <td>
+                                <span class="date-val">
+                                    <?= date('d M Y', strtotime($row['created_at'])) ?>
+                                    <span class="time-part"><?= date('h:i A', strtotime($row['created_at'])) ?></span>
+                                </span>
+                            </td>
                             <td>
                                 <div class="act-group">
                                     <!-- View report (internal preview) -->
@@ -484,10 +501,10 @@ require 'mydb.php';
                                     </a>
                                     <?php endif; ?>
 
-                                    <!-- Open public verification page -->
-                                    <a href="report_varification.php?id=<?= $row['id'] ?>"
-                                       class="act-btn act-open" title="Open Verification Page" target="_blank">
-                                        <i class="fas fa-arrow-up-right-from-square"></i>
+                                    <!-- Live view (public HUID lookup) -->
+                                    <a href="<?= htmlspecialchars($liveViewUrl) ?>"
+                                       class="act-btn act-live" title="Open Live Report View" target="_blank" rel="noopener">
+                                        <i class="fas fa-globe"></i>
                                     </a>
 
                                     <!-- Edit -->
