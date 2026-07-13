@@ -661,8 +661,11 @@ if (isset($_GET['report_id'])) {
                 </div>
 
             </div><!-- /bottom 2-col -->
+        <div style="text-align:center;font-size:11px;color:#374151;margin:6px 0;color:#D97706;">
+            To check the authenticity of this report, scan the QR code or visit <b>www.rajaiswari.com</b> and enter HUID <b><?= htmlspecialchars($report_data['huid'] ?? '') ?></b> to verify this report.
+        </div>
 
-        </div><!-- /reportPreview -->
+        </div><!-- /reportPreview -->      
     </div><!-- /hallmark-preview -->
 
     <div class="report-actions">
