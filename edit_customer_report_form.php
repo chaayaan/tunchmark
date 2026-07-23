@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Image upload ──────────────────────────────────────────────────────
     $allowed_types = ['image/jpeg','image/jpg','image/png','image/webp'];
-    $max_size      = 50 * 1024; // 50 KB
+    $max_size      = 45 * 1024; // 45 KB — client compresses to 30-40 KB, this is a small safety buffer
     $photo_paths   = [];
 
     // Helper: delete existing image file + DB row for a given slot
@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_FILES['photo']) && $_FILES['photo']['error'] !== UPLOAD_ERR_NO_FILE) {
             $file = $_FILES['photo'];
             if ($file['error'] !== UPLOAD_ERR_OK)       { $upload_error = "Upload error."; }
-            elseif ($file['size'] > $max_size)           { $upload_error = "Photo exceeds 50 KB limit."; }
+            elseif ($file['size'] > $max_size)           { $upload_error = "Photo is too large. Please re-select or re-capture the photo so it can be compressed again."; }
             else {
                 $finfo = new finfo(FILEINFO_MIME_TYPE);
                 $mime  = $finfo->file($file['tmp_name']);
@@ -132,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!isset($_FILES[$key]) || $_FILES[$key]['error'] === UPLOAD_ERR_NO_FILE) continue;
             $file = $_FILES[$key];
             if ($file['error'] !== UPLOAD_ERR_OK)       { $upload_error = "Upload error on photo $n."; break; }
-            if ($file['size'] > $max_size)              { $upload_error = "Photo $n exceeds 50 KB limit."; break; }
+            if ($file['size'] > $max_size)              { $upload_error = "Photo $n is too large. Please re-select or re-capture the photo so it can be compressed again."; break; }
             $finfo = new finfo(FILEINFO_MIME_TYPE);
             $mime  = $finfo->file($file['tmp_name']);
             if (!in_array($mime, $allowed_types))       { $upload_error = "Photo $n: only JPG/PNG/WEBP allowed."; break; }
@@ -268,6 +268,7 @@ require_once 'navbar.php';
         .btn-pos{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border:none;border-radius:var(--rs);font-family:inherit;font-size:.8125rem;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none;white-space:nowrap;}
         .btn-ghost{background:var(--surface);color:var(--t2);border:1.5px solid var(--border);}
         .btn-ghost:hover{background:var(--s2);border-color:#9ca3af;color:var(--t1);}
+        .btn-blue{background:var(--blue);color:#fff;} .btn-blue:hover{background:#1d4ed8;}
         .btn-green{background:var(--green);color:#fff;} .btn-green:hover{background:#047857;}
         .btn-amber{background:var(--amber);color:#fff;} .btn-amber:hover{background:#b45309;}
         .btn-violet{background:var(--violet);color:#fff;} .btn-violet:hover{background:#6d28d9;}
@@ -342,6 +343,58 @@ require_once 'navbar.php';
         .dz-clear{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;background:rgba(220,38,38,.85);border:none;color:#fff;font-size:9px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:10;}
         .drop-zone.has-file .dz-clear{display:flex;}
         .dz-input{display:none;}
+        .dz-compressing-overlay{
+            position:absolute;inset:0;display:none;flex-direction:column;
+            align-items:center;justify-content:center;gap:6px;
+            background:rgba(255,255,255,.92);z-index:20;
+        }
+        .dz-compressing-overlay i{font-size:1.3rem;color:var(--violet);}
+        .dz-compressing-overlay span{font-size:.75rem;font-weight:600;color:var(--t3);}
+        .drop-zone.dz-compressing .dz-compressing-overlay{display:flex;}
+        .drop-zone.dz-cyan .dz-compressing-overlay i{color:var(--cyan);}
+
+        /* ── Webcam capture ── */
+        .btn-webcam{
+            display:inline-flex;align-items:center;gap:6px;
+            height:32px;padding:0 12px;margin-top:8px;
+            border:1.5px solid var(--border);border-radius:var(--rs);
+            background:var(--surface);color:var(--t2);
+            font-family:inherit;font-size:.78rem;font-weight:600;
+            cursor:pointer;transition:all .15s;
+        }
+        .btn-webcam:hover{background:var(--s2);border-color:#9ca3af;color:var(--t1);}
+        .btn-webcam i{font-size:.7rem;color:var(--violet);}
+        .dz-cyan + .btn-webcam i,.btn-webcam.webcam-cyan i{color:var(--cyan);}
+
+        /* Hide webcam button on touch/mobile devices — they use native camera input instead */
+        @media (max-width:768px), (pointer:coarse){
+            .btn-webcam{display:none;}
+        }
+
+        .cam-modal{
+            display:none;position:fixed;inset:0;background:rgba(17,24,39,.65);
+            z-index:1000;align-items:center;justify-content:center;padding:16px;
+        }
+        .cam-modal.open{display:flex;}
+        .cam-box{
+            background:#fff;border-radius:var(--r);padding:16px;
+            max-width:460px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25);
+        }
+        .cam-box-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+        .cam-box-hd span{font-size:.875rem;font-weight:700;color:var(--t1);}
+        .cam-box-hd i{cursor:pointer;color:var(--t4);font-size:1rem;}
+        .cam-box-hd i:hover{color:var(--t1);}
+        #camVideo{
+            width:100%;border-radius:var(--rs);background:#111;
+            display:block;max-height:340px;object-fit:cover;
+        }
+        .cam-box-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;}
+        .cam-error{
+            display:none;padding:10px 12px;border-radius:var(--rs);
+            background:var(--red-bg);border:1px solid var(--red-b);color:#991b1b;
+            font-size:.8rem;margin-bottom:10px;
+        }
+        .cam-error.show{display:block;}
 
         @media(max-width:991.98px){
             .page-shell{margin-left:0;}
@@ -490,7 +543,7 @@ require_once 'navbar.php';
             <div>
                 <label class="lbl">Sample Photo
                     <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">
-                        Optional · max 50 KB · JPG/PNG/WEBP
+                        Optional · auto-compressed to ~30-40 KB
                     </span>
                 </label>
                 <?php $hImg = $existingImages['hallmark'][1] ?? null; ?>
@@ -510,7 +563,7 @@ require_once 'navbar.php';
                         <span style="font-size:.75rem;color:var(--t4);">or upload a new one below</span>
                     </div>
                     <?php endif; ?>
-                    <!-- CHANGED: .new-file-wrap plain input → drag & drop zone -->
+                    <!-- CHANGED: drag & drop zone with auto-compress + webcam capture (mirrors create_hallmark_report.php) -->
                     <div class="dz-wrap">
                         <div class="drop-zone dz-cyan" id="dz_photo_h"
                              onclick="document.getElementById('photo').click()"
@@ -521,7 +574,11 @@ require_once 'navbar.php';
                             <div class="dz-placeholder">
                                 <i class="fas fa-cloud-arrow-up"></i>
                                 <span>Drag &amp; drop or click</span>
-                                <small>JPG · PNG · WEBP · max 50 KB</small>
+                                <small>JPG · PNG · WEBP · any size, auto-compressed</small>
+                            </div>
+                            <div class="dz-compressing-overlay">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span>Compressing...</span>
                             </div>
                             <img id="photo_preview_h" class="dz-preview" alt="New photo preview">
                             <button type="button" class="dz-clear"
@@ -531,8 +588,11 @@ require_once 'navbar.php';
                             </button>
                         </div>
                         <input type="file" name="photo" id="photo" class="dz-input"
-                               accept=".jpg,.jpeg,.png,.webp"
+                               accept=".jpg,.jpeg,.png,.webp" capture="environment"
                                onchange="dzFromInput(this,'dz_photo_h','photo_preview_h','hallmark')">
+                        <button type="button" class="btn-webcam webcam-cyan" onclick="openCamera('photo','dz_photo_h','photo_preview_h','hallmark')">
+                            <i class="fas fa-camera"></i> Use Webcam Instead
+                        </button>
                     </div>
                 </div>
             </div>
@@ -752,7 +812,7 @@ require_once 'navbar.php';
         <div class="sec-hd">
             <span class="sec-ico si-am"><i class="fas fa-images"></i></span>
             <span class="sec-title">Step 5 — Sample Photos</span>
-            <span style="margin-left:auto;font-size:.75rem;color:var(--t4);">Optional · max 50 KB each</span>
+            <span style="margin-left:auto;font-size:.75rem;color:var(--t4);">Optional · auto-compressed to ~30-40 KB each</span>
         </div>
         <div class="sec-body">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
@@ -783,7 +843,7 @@ require_once 'navbar.php';
                     </div>
                     <?php endif; ?>
 
-                    <!-- CHANGED: .new-file-wrap plain input → drag & drop zone -->
+                    <!-- CHANGED: drag & drop zone with auto-compress + webcam capture (mirrors create_tunch_report.php) -->
                     <div class="dz-wrap">
                         <div class="drop-zone" id="dz_photo_<?= $n ?>"
                              onclick="document.getElementById('photo_<?= $n ?>').click()"
@@ -794,7 +854,11 @@ require_once 'navbar.php';
                             <div class="dz-placeholder">
                                 <i class="fas fa-cloud-arrow-up"></i>
                                 <span>Drag &amp; drop or click</span>
-                                <small>JPG · PNG · WEBP · max 50 KB</small>
+                                <small>JPG · PNG · WEBP · any size, auto-compressed</small>
+                            </div>
+                            <div class="dz-compressing-overlay">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <span>Compressing...</span>
                             </div>
                             <img id="prev<?= $n ?>" class="dz-preview" alt="Photo <?= $n ?> preview">
                             <button type="button" class="dz-clear"
@@ -804,8 +868,11 @@ require_once 'navbar.php';
                             </button>
                         </div>
                         <input type="file" name="photo_<?= $n ?>" id="photo_<?= $n ?>" class="dz-input"
-                               accept=".jpg,.jpeg,.png,.webp"
+                               accept=".jpg,.jpeg,.png,.webp" capture="environment"
                                onchange="dzFromInput(this,'dz_photo_<?= $n ?>','prev<?= $n ?>','tunch_<?= $n ?>')">
+                        <button type="button" class="btn-webcam" onclick="openCamera('photo_<?= $n ?>','dz_photo_<?= $n ?>','prev<?= $n ?>','tunch_<?= $n ?>')">
+                            <i class="fas fa-camera"></i> Use Webcam Instead
+                        </button>
                     </div>
                 </div>
                 <?php endfor; ?>
@@ -832,6 +899,27 @@ require_once 'navbar.php';
 <?php endif; ?>
 
 </div><!-- /page-shell -->
+
+<!-- Webcam capture modal (shared by all photo slots) -->
+<div class="cam-modal" id="camModal">
+    <div class="cam-box">
+        <div class="cam-box-hd">
+            <span><i class="fas fa-camera" style="color:var(--violet);margin-right:6px;"></i>Capture Sample Photo</span>
+            <i class="fas fa-xmark" onclick="closeCamera()"></i>
+        </div>
+
+        <div class="cam-error" id="camError"></div>
+
+        <video id="camVideo" autoplay playsinline muted></video>
+
+        <div class="cam-box-actions">
+            <button type="button" class="btn-pos btn-ghost" onclick="closeCamera()">Cancel</button>
+            <button type="button" class="btn-pos btn-blue" id="camCaptureBtn" onclick="captureFromCamera()">
+                <i class="fas fa-camera" style="font-size:.65rem;"></i> Capture Photo
+            </button>
+        </div>
+    </div>
+</div>
 
 <script>
 const GOLD_ELEMENTS   = <?= json_encode($GOLD_ELEMENTS) ?>;
@@ -920,50 +1008,129 @@ function getRemoveBtn(slotKey) {
     return null;
 }
 
-// ── Drag & Drop Zone Functions (NEW) ─────────────────────────────────────
-const MAX_PHOTO_SIZE = 50 * 1024;
-const ALLOWED_TYPES  = ['image/jpeg','image/jpg','image/png','image/webp'];
+// ── Drag & Drop Photo Upload + Compression Pipeline (mirrors create_tunch_report.php / create_hallmark_report.php) ──
+const ALLOWED_TYPES    = ['image/jpeg','image/jpg','image/png','image/webp'];
+const TARGET_MIN_BYTES = 30 * 1024; // 30 KB
+const TARGET_MAX_BYTES = 40 * 1024; // 40 KB
+const MAX_DIMENSION    = 1200;      // longest edge in px — plenty of detail for a sample close-up
 
-function dzValidate(file) {
+function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => resolve({ img, url });
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read image file.')); };
+        img.src = url;
+    });
+}
+
+function drawToCanvas(img, maxDim) {
+    let { width, height } = img;
+    if (width > maxDim || height > maxDim) {
+        const scale = maxDim / Math.max(width, height);
+        width  = Math.round(width  * scale);
+        height = Math.round(height * scale);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width  = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, width, height);
+    return canvas;
+}
+
+function canvasToBlob(canvas, quality) {
+    return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+}
+
+// Binary-searches JPEG quality to land the file size inside [minBytes,maxBytes].
+// If even the lowest acceptable quality is still too big, shrinks dimensions and retries —
+// this preserves visible detail far better than just cranking quality down on a huge canvas.
+async function compressToRange(canvas, minBytes, maxBytes, dimAttempt = 0) {
+    let lo = 0.15, hi = 0.95, best = null;
+
+    for (let i = 0; i < 8; i++) {
+        const mid  = (lo + hi) / 2;
+        const blob = await canvasToBlob(canvas, mid);
+        if (!blob) break;
+
+        if (blob.size > maxBytes) {
+            hi = mid;
+        } else {
+            best = blob;
+            if (blob.size >= minBytes) break; // landed inside the target range
+            lo = mid; // still room to push quality up
+        }
+    }
+
+    if (best && best.size <= maxBytes) return best;
+
+    if (dimAttempt < 5 && canvas.width > 250) {
+        const smaller = document.createElement('canvas');
+        smaller.width  = Math.round(canvas.width  * 0.82);
+        smaller.height = Math.round(canvas.height * 0.82);
+        const ctx = smaller.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(canvas, 0, 0, smaller.width, smaller.height);
+        return compressToRange(smaller, minBytes, maxBytes, dimAttempt + 1);
+    }
+
+    return best || await canvasToBlob(canvas, 0.15);
+}
+
+async function compressFileToTarget(file) {
+    const { img, url } = await loadImageFromFile(file);
+    const canvas = drawToCanvas(img, MAX_DIMENSION);
+    const blob   = await compressToRange(canvas, TARGET_MIN_BYTES, TARGET_MAX_BYTES);
+    URL.revokeObjectURL(url);
+    return blob;
+}
+
+function renameToJpg(originalName) {
+    const base = (originalName || 'photo').replace(/\.[^/.]+$/, '');
+    return `${base}_compressed.jpg`;
+}
+
+async function handleIncomingFile(file, zoneId, previewId, inputId, slotKey) {
     if (!ALLOWED_TYPES.includes(file.type)) {
         alert('Only JPG, PNG, or WEBP images are allowed.');
-        return false;
+        return;
     }
-    if (file.size > MAX_PHOTO_SIZE) {
-        alert('Photo exceeds 50 KB. Please choose a smaller file.');
-        return false;
+    const zone = document.getElementById(zoneId);
+    zone.classList.add('dz-compressing');
+    try {
+        const compressedBlob = await compressFileToTarget(file);
+        const newFile = new File([compressedBlob], renameToJpg(file.name), { type: 'image/jpeg' });
+
+        const dt = new DataTransfer();
+        dt.items.add(newFile);
+        document.getElementById(inputId).files = dt.files;
+        document.getElementById(previewId).src = URL.createObjectURL(newFile);
+        zone.classList.add('has-file');
+        // Auto-mark the existing image for removal, same as before
+        if (slotKey) markForRemoval(slotKey, true);
+    } catch (e) {
+        alert('Could not process the photo: ' + e.message);
+    } finally {
+        zone.classList.remove('dz-compressing');
     }
-    return true;
 }
-function dzApply(file, zoneId, previewId, slotKey) {
-    if (!dzValidate(file)) return;
-    document.getElementById(previewId).src = URL.createObjectURL(file);
-    document.getElementById(zoneId).classList.add('has-file');
-    // Auto-mark the existing image for removal (same as original previewAndAutoMark)
-    if (slotKey) markForRemoval(slotKey, true);
-}
+
 function dzFromInput(input, zoneId, previewId, slotKey) {
-    if (input.files && input.files[0]) dzApply(input.files[0], zoneId, previewId, slotKey);
+    if (input.files && input.files[0]) handleIncomingFile(input.files[0], zoneId, previewId, input.id, slotKey);
 }
-function dzEnter(e, zone) {
-    e.preventDefault();
-    zone.classList.add('dz-over');
-}
-function dzOver(e) {
-    e.preventDefault();
-}
-function dzLeave(e, zone) {
-    if (!zone.contains(e.relatedTarget)) zone.classList.remove('dz-over');
-}
+function dzEnter(e, zone) { e.preventDefault(); zone.classList.add('dz-over'); }
+function dzOver(e) { e.preventDefault(); }
+function dzLeave(e, zone) { if (!zone.contains(e.relatedTarget)) zone.classList.remove('dz-over'); }
 function dzDrop(e, zone, inputId, previewId, slotKey) {
     e.preventDefault();
     zone.classList.remove('dz-over');
     const file = e.dataTransfer.files[0];
     if (!file) return;
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    document.getElementById(inputId).files = dt.files;
-    dzApply(file, zone.id, previewId, slotKey);
+    handleIncomingFile(file, zone.id, previewId, inputId, slotKey);
 }
 function dzClear(e, zoneId, inputId, previewId) {
     e.stopPropagation();
@@ -971,6 +1138,123 @@ function dzClear(e, zoneId, inputId, previewId) {
     document.getElementById(previewId).src  = '';
     document.getElementById(zoneId).classList.remove('has-file');
 }
+
+// ── Webcam Capture (shared modal — targets whichever photo slot was requested) ──
+let camStream       = null;
+let camTargetInput  = null;
+let camTargetZone   = null;
+let camTargetPrev   = null;
+let camTargetSlot   = null;
+
+async function openCamera(inputId, zoneId, previewId, slotKey) {
+    camTargetInput = inputId;
+    camTargetZone  = zoneId;
+    camTargetPrev  = previewId;
+    camTargetSlot  = slotKey || null;
+
+    const modal  = document.getElementById('camModal');
+    const errBox = document.getElementById('camError');
+    errBox.classList.remove('show');
+    errBox.textContent = '';
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        errBox.textContent = 'Camera access is not supported in this browser.';
+        errBox.classList.add('show');
+        modal.classList.add('open');
+        return;
+    }
+
+    modal.classList.add('open');
+
+    try {
+        camStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+            audio: false
+        });
+        document.getElementById('camVideo').srcObject = camStream;
+    } catch (e) {
+        let msg = 'Could not access the webcam.';
+        if (e.name === 'NotAllowedError') msg = 'Camera permission was denied. Please allow camera access and try again.';
+        else if (e.name === 'NotFoundError') msg = 'No camera was found on this device.';
+        else if (e.name === 'NotReadableError') msg = 'Camera is already in use by another application.';
+        errBox.textContent = msg;
+        errBox.classList.add('show');
+    }
+}
+
+function closeCamera() {
+    if (camStream) {
+        camStream.getTracks().forEach(t => t.stop());
+        camStream = null;
+    }
+    const video = document.getElementById('camVideo');
+    video.srcObject = null;
+    document.getElementById('camModal').classList.remove('open');
+}
+
+async function captureFromCamera() {
+    const video = document.getElementById('camVideo');
+    const btn   = document.getElementById('camCaptureBtn');
+
+    if (!video.videoWidth) {
+        alert('Camera is still starting up — please wait a moment and try again.');
+        return;
+    }
+    if (!camTargetInput || !camTargetZone || !camTargetPrev) {
+        alert('No photo slot selected. Please close this and click "Use Webcam Instead" again.');
+        return;
+    }
+
+    const rawCanvas = document.createElement('canvas');
+    rawCanvas.width  = video.videoWidth;
+    rawCanvas.height = video.videoHeight;
+    rawCanvas.getContext('2d').drawImage(video, 0, 0, rawCanvas.width, rawCanvas.height);
+
+    const origLabel = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Compressing...';
+
+    try {
+        // Resize (if needed) then run the same quality-search pipeline used for file uploads
+        const scale = Math.min(1, MAX_DIMENSION / Math.max(rawCanvas.width, rawCanvas.height));
+        const resized = document.createElement('canvas');
+        resized.width  = Math.round(rawCanvas.width  * scale);
+        resized.height = Math.round(rawCanvas.height * scale);
+        const rctx = resized.getContext('2d');
+        rctx.imageSmoothingEnabled = true;
+        rctx.imageSmoothingQuality = 'high';
+        rctx.drawImage(rawCanvas, 0, 0, resized.width, resized.height);
+
+        const blob = await compressToRange(resized, TARGET_MIN_BYTES, TARGET_MAX_BYTES);
+        const file = new File([blob], `webcam_${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        document.getElementById(camTargetInput).files = dt.files;
+        document.getElementById(camTargetPrev).src = URL.createObjectURL(file);
+        document.getElementById(camTargetZone).classList.add('has-file');
+        if (camTargetSlot) markForRemoval(camTargetSlot, true);
+
+        closeCamera();
+    } catch (e) {
+        alert('Could not process the captured photo: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origLabel;
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const camModal = document.getElementById('camModal');
+    if (camModal) {
+        camModal.addEventListener('click', (e) => {
+            if (e.target.id === 'camModal') closeCamera();
+        });
+    }
+});
+window.addEventListener('beforeunload', () => {
+    if (camStream) camStream.getTracks().forEach(t => t.stop());
+});
 </script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
