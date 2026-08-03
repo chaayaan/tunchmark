@@ -145,8 +145,7 @@ function soutPagUrl($p) {
   .sec-title { font-size:.9375rem; font-weight:700; color:#111827; }
   .sec-meta  { margin-left:auto; font-size:.78rem; color:#9ca3af; font-weight:500; }
 
-  .batch-block { border-bottom:1px solid #f0f1f3; }
-  .batch-block:last-child { border-bottom:none; }
+  .batch-block + .batch-block tr:first-child td { border-top: 2px solid #1a1a2e; }
 
   .badge-status { font-size:.72rem; padding:3px 9px; border-radius:20px; font-weight:600; }
   .badge-in_stock { background:#d1fae5; color:#065f46; }
@@ -173,7 +172,27 @@ function soutPagUrl($p) {
   .sale-item-row { background:#f8f9fc; border:1px solid #e9ecef; border-radius:10px; padding:12px 40px 12px 14px; margin-bottom:10px; position:relative; }
   .sale-item-row .remove-btn { position:absolute; top:10px; right:10px; }
   .modal-dialog { max-width:680px; }
+  #saleModal.modal.show .modal-dialog.modal-dialog-scrollable { max-height:92vh; }
+  #saleModal.modal.show .modal-dialog.modal-dialog-scrollable .modal-content { max-height:92vh; }
+  #saleModal .modal-body { max-height:calc(92vh - 130px); }
   .avail-count { background:#d1fae5; color:#065f46; font-size:.72rem; padding:3px 9px; border-radius:12px; font-weight:600; }
+
+  /* Autocomplete combobox for item selection */
+  .item-combo { position:relative; }
+  .item-combo .item-search.is-selected { border-color:#22c55e; background:#f0fdf4; }
+  .item-suggestions {
+    display:none; position:absolute; top:100%; left:0; right:0; z-index:50;
+    max-height:280px; overflow-y:auto; margin-top:4px;
+    background:#fff; border:1.5px solid #e4e7ec; border-radius:8px;
+    box-shadow:0 8px 20px rgba(0,0,0,.1);
+  }
+  .item-suggestions.show { display:block; }
+  .item-suggestion { padding:8px 12px; font-size:.85rem; cursor:pointer; border-bottom:1px solid #f3f4f6; }
+  .item-suggestion:last-child { border-bottom:none; }
+  .item-suggestion:hover, .item-suggestion.active { background:#eff6ff; }
+  .item-suggestion .s-product { font-weight:600; color:#111827; }
+  .item-suggestion .s-serial { color:#6b7280; font-size:.78rem; font-family:monospace; }
+  .item-suggestion-empty { padding:10px 12px; font-size:.82rem; color:#9ca3af; font-style:italic; }
 
   @media(max-width:991.98px){ .page-shell { margin-left:0; } .top-bar { top:52px; } }
 </style>
@@ -222,23 +241,6 @@ function soutPagUrl($p) {
         <span class="sec-meta">Showing <?= $all_sout->num_rows ?> of <?= $total_rows ?></span>
       </div>
 
-      <!-- Column headers -->
-      <div style="padding:0;">
-        <table style="width:100%;border-collapse:collapse;">
-          <thead>
-            <tr style="background:#1a1a2e;">
-              <th style="padding:9px 18px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;white-space:nowrap;width:200px;">Buyer / Date</th>
-              <th style="padding:9px 74px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Product</th>
-              <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Serial No</th>
-              <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Part No</th>
-              <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Out Date</th>
-              <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Status</th>
-              <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Invoice</th>
-            </tr>
-          </thead>
-        </table>
-      </div>
-
       <?php if($all_sout->num_rows === 0): ?>
         <div style="padding:56px 24px;text-align:center;color:#9ca3af;">
           <i class="bi bi-inbox" style="font-size:2.8rem;display:block;margin-bottom:12px;"></i>
@@ -247,29 +249,50 @@ function soutPagUrl($p) {
         </div>
       <?php else: ?>
 
+      <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+        <colgroup>
+          <col style="width:200px;">
+          <col style="width:26%;">
+          <col style="width:16%;">
+          <col style="width:14%;">
+          <col style="width:13%;">
+          <col style="width:12%;">
+          <col style="width:80px;">
+        </colgroup>
+        <thead>
+          <tr style="background:#1a1a2e;">
+            <th style="padding:9px 18px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;white-space:nowrap;text-align:left;">Buyer / Date</th>
+            <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:left;">Product</th>
+            <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:left;">Serial No</th>
+            <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:left;">Part No</th>
+            <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:left;">Out Date</th>
+            <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:left;">Status</th>
+            <th style="padding:9px 14px;color:#ccd6f6;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;text-align:left;">Invoice</th>
+          </tr>
+        </thead>
+
       <?php $all_sout->data_seek(0); while($sout = $all_sout->fetch_assoc()):
         $items = $sout_items[$sout['id']] ?? [];
         $item_count = count($items);
       ?>
-      <div class="batch-block">
-        <table style="width:100%;border-collapse:collapse;">
-          <tbody>
+          <tbody class="batch-block">
           <?php if(empty($items)): ?>
             <tr>
-              <td style="padding:10px 18px;vertical-align:middle;width:200px;border-bottom:1px solid #f9fafb;">
+              <td style="padding:10px 18px;vertical-align:middle;">
                 <div style="font-weight:700;font-size:.875rem;color:#111827;"><?= htmlspecialchars($sout['buyer_name']) ?></div>
                 <?php if($sout['company_name']): ?><div style="font-size:.75rem;color:#9ca3af;"><?= htmlspecialchars($sout['company_name']) ?></div><?php endif; ?>
                 <?php if($sout['phone']): ?><div style="font-size:.75rem;color:#9ca3af;"><i class="bi bi-telephone me-1"></i><?= htmlspecialchars($sout['phone']) ?></div><?php endif; ?>
                 <div style="font-size:.78rem;color:#6b7280;margin-top:2px;"><i class="bi bi-calendar3 me-1"></i><?= date('d M Y', strtotime($sout['sale_date'])) ?></div>
                 <div style="font-size:.7rem;color:#9ca3af;font-family:monospace;">Sale #<?= $sout['id'] ?></div>
               </td>
-              <td colspan="6" style="padding:10px 14px;color:#9ca3af;font-size:.875rem;border-bottom:1px solid #f9fafb;"><em>No items in this sale</em></td>
+              <td colspan="6" style="padding:10px 14px;color:#9ca3af;font-size:.875rem;"><em>No items in this sale</em></td>
             </tr>
           <?php else: ?>
           <?php foreach($items as $idx => $item): ?>
             <tr>
               <?php if($idx === 0): ?>
-              <td style="padding:10px 18px;vertical-align:top;width:200px;border-bottom:1px solid #f9fafb;" rowspan="<?= $item_count ?>">
+              <td style="padding:10px 18px;vertical-align:top;" rowspan="<?= $item_count ?>">
                 <div style="font-weight:700;font-size:.875rem;color:#111827;"><?= htmlspecialchars($sout['buyer_name']) ?></div>
                 <?php if($sout['company_name']): ?><div style="font-size:.75rem;color:#9ca3af;"><?= htmlspecialchars($sout['company_name']) ?></div><?php endif; ?>
                 <?php if($sout['phone']): ?><div style="font-size:.75rem;color:#9ca3af;"><i class="bi bi-telephone me-1"></i><?= htmlspecialchars($sout['phone']) ?></div><?php endif; ?>
@@ -282,22 +305,22 @@ function soutPagUrl($p) {
                 </div>
               </td>
               <?php endif; ?>
-              <td style="padding:8px 14px;font-size:.875rem;vertical-align:middle;border-bottom:1px solid #f9fafb;max-width:200px;">
+              <td style="padding:8px 14px;font-size:.875rem;vertical-align:middle;word-break:break-word;">
                 <?= htmlspecialchars($item['product_name']) ?>
               </td>
-              <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;">
+              <td style="padding:8px 14px;vertical-align:middle;">
                 <code style="font-size:.82rem;"><?= htmlspecialchars($item['serial_no']) ?></code>
               </td>
-              <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;font-size:.875rem;">
+              <td style="padding:8px 14px;vertical-align:middle;font-size:.875rem;">
                 <?= $item['part_no'] ? htmlspecialchars($item['part_no']) : '<span style="color:#9ca3af;">—</span>' ?>
               </td>
-              <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;font-size:.78rem;color:#6b7280;font-family:monospace;">
+              <td style="padding:8px 14px;vertical-align:middle;font-size:.78rem;color:#6b7280;font-family:monospace;">
                 <?= $item['out_date'] ? date('d M Y', strtotime($item['out_date'])) : '<span style="color:#9ca3af;">—</span>' ?>
               </td>
-              <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;">
+              <td style="padding:8px 14px;vertical-align:middle;">
                 <span class="badge-status badge-<?= $item['status'] ?>"><?= $item['status'] ?></span>
               </td>
-              <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;">
+              <td style="padding:8px 14px;vertical-align:middle;">
                 <?php if($idx === 0): ?>
                 <a href="invoice.php?id=<?= $sout['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2">
                   <i class="bi bi-printer"></i>
@@ -310,9 +333,9 @@ function soutPagUrl($p) {
           <?php endforeach; ?>
           <?php endif; ?>
           </tbody>
-        </table>
-      </div>
       <?php endwhile; ?>
+      </table>
+      </div>
 
       <!-- Pagination -->
       <?php if($total_pages > 1): ?>
@@ -385,20 +408,15 @@ function soutPagUrl($p) {
           <div id="saleItemsContainer">
             <div class="sale-item-row" id="sale-item-0">
               <div class="row g-2 align-items-end">
-                <div class="col-5">
-                  <label class="form-label form-label-sm">Filter by Product</label>
-                  <input type="text" class="form-control form-control-sm product-filter" placeholder="Type to filter..." oninput="filterRow(this)">
-                </div>
-                <div class="col-7">
+                <div class="col-12">
                   <label class="form-label form-label-sm">Select Item <span class="text-danger">*</span></label>
-                  <select name="product_item_id[]" class="form-select form-select-sm item-select" required>
-                    <option value="">— Product / Serial No —</option>
-                    <?php $available->data_seek(0); while($row=$available->fetch_assoc()): ?>
-                    <option value="<?= $row['id'] ?>" data-product="<?= htmlspecialchars(strtolower($row['product_name'])) ?>">
-                      <?= htmlspecialchars($row['product_name']) ?> — <?= htmlspecialchars($row['serial_no']) ?><?= $row['part_no']?' / '.$row['part_no']:'' ?>
-                    </option>
-                    <?php endwhile; ?>
-                  </select>
+                  <div class="item-combo">
+                    <input type="text" class="form-control form-control-sm item-search"
+                           placeholder="Type product name or serial no..." autocomplete="off"
+                           oninput="onComboInput(this)" onfocus="onComboFocus(this)" onkeydown="onComboKeydown(this, event)">
+                    <input type="hidden" name="product_item_id[]" class="item-value" required>
+                    <div class="item-suggestions"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -422,24 +440,116 @@ const allItemOptions = <?php
   while($row = $available->fetch_assoc()) {
     $label = $row['product_name'] . ' — ' . $row['serial_no'];
     if ($row['part_no']) $label .= ' / ' . $row['part_no'];
-    $opts[] = ['id' => $row['id'], 'label' => $label, 'product' => strtolower($row['product_name'])];
+    $opts[] = ['id' => $row['id'], 'product' => $row['product_name'], 'serial' => $row['serial_no'], 'part' => $row['part_no'], 'label' => $label, 'q' => strtolower($label)];
   }
   echo json_encode($opts);
 ?>;
 
-function buildOptions(filterText) {
-  const q = filterText.toLowerCase();
-  let html = '<option value="">— Product / Serial No —</option>';
-  allItemOptions.forEach(o => {
-    if (!q || o.product.includes(q) || o.label.toLowerCase().includes(q))
-      html += `<option value="${o.id}" data-product="${o.product}">${o.label}</option>`;
+// IDs currently chosen in rows other than `exceptRow`.
+function getSelectedElsewhere(exceptRow) {
+  const chosen = new Set();
+  document.querySelectorAll('.sale-item-row').forEach(row => {
+    if (row === exceptRow) return;
+    const val = row.querySelector('.item-value').value;
+    if (val) chosen.add(val);
   });
-  return html;
+  return chosen;
 }
-function filterRow(input) {
-  const row = input.closest('.sale-item-row');
-  row.querySelector('.item-select').innerHTML = buildOptions(input.value);
+
+function updateAvailCount() {
+  const el = document.querySelector('.avail-count');
+  if (!el) return;
+  const usedCount = new Set(
+    Array.from(document.querySelectorAll('.item-value')).map(i => i.value).filter(Boolean)
+  ).size;
+  el.textContent = (allItemOptions.length - usedCount) + ' available';
 }
+
+function comboEls(input) {
+  const wrap = input.closest('.item-combo');
+  return {
+    wrap,
+    search: wrap.querySelector('.item-search'),
+    value: wrap.querySelector('.item-value'),
+    box: wrap.querySelector('.item-suggestions')
+  };
+}
+
+function renderSuggestions(input, query) {
+  const { wrap, value, box } = comboEls(input);
+  const row = wrap.closest('.sale-item-row');
+  const excludeIds = getSelectedElsewhere(row);
+  const q = query.trim().toLowerCase();
+
+  const matches = allItemOptions.filter(o => !excludeIds.has(String(o.id)) && (!q || o.q.includes(q))).slice(0, 50);
+
+  if (matches.length === 0) {
+    box.innerHTML = '<div class="item-suggestion-empty">No matching items available</div>';
+  } else {
+    box.innerHTML = matches.map(o => `
+      <div class="item-suggestion" data-id="${String(o.id)}" data-label="${o.label.replace(/"/g,'&quot;')}" onclick="selectSuggestion(this)">
+        <div class="s-product">${escapeHtml(o.product)}</div>
+        <div class="s-serial">${escapeHtml(o.serial)}${o.part ? ' / ' + escapeHtml(o.part) : ''}</div>
+      </div>`).join('');
+  }
+  box.classList.add('show');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function onComboInput(input) {
+  const { value, search } = comboEls(input);
+  // Typing invalidates any previously locked-in selection until they pick again.
+  value.value = '';
+  search.classList.remove('is-selected');
+  renderSuggestions(input, input.value);
+}
+
+function onComboFocus(input) {
+  renderSuggestions(input, input.value);
+}
+
+function onComboKeydown(input, e) {
+  if (e.key === 'Escape') {
+    comboEls(input).box.classList.remove('show');
+    input.blur();
+  }
+}
+
+function selectSuggestion(el) {
+  const input = el.closest('.item-combo').querySelector('.item-search');
+  const { value, box } = comboEls(input);
+  input.value = el.dataset.label;
+  value.value = el.dataset.id;
+  input.classList.add('is-selected');
+  input.classList.remove('is-invalid');
+  box.classList.remove('show');
+  refreshAllCombos();
+}
+
+// After any selection/removal, re-check every OTHER row's suggestion list
+// (if currently open) so a just-booked item disappears everywhere else,
+// and refresh the picked item's own box in case it needs re-filtering.
+function refreshAllCombos() {
+  document.querySelectorAll('.sale-item-row').forEach(row => {
+    const box = row.querySelector('.item-suggestions');
+    if (box.classList.contains('show')) {
+      const input = row.querySelector('.item-search');
+      renderSuggestions(input, input.value.includes('—') ? '' : input.value);
+    }
+  });
+  updateAvailCount();
+}
+
+// Close suggestion boxes when clicking outside a combobox.
+document.addEventListener('click', (e) => {
+  document.querySelectorAll('.item-combo').forEach(wrap => {
+    if (!wrap.contains(e.target)) wrap.querySelector('.item-suggestions').classList.remove('show');
+  });
+});
+
 let saleRowCount = 1;
 function addSaleRow() {
   const container = document.getElementById('saleItemsContainer');
@@ -452,23 +562,59 @@ function addSaleRow() {
       <i class="bi bi-x-lg"></i>
     </button>
     <div class="row g-2 align-items-end">
-      <div class="col-5">
-        <label class="form-label form-label-sm">Filter by Product</label>
-        <input type="text" class="form-control form-control-sm product-filter" placeholder="Type to filter..." oninput="filterRow(this)">
-      </div>
-      <div class="col-7">
+      <div class="col-12">
         <label class="form-label form-label-sm">Select Item <span class="text-danger">*</span></label>
-        <select name="product_item_id[]" class="form-select form-select-sm item-select" required>
-          ${buildOptions('')}
-        </select>
+        <div class="item-combo">
+          <input type="text" class="form-control form-control-sm item-search"
+                 placeholder="Type product name or serial no..." autocomplete="off"
+                 oninput="onComboInput(this)" onfocus="onComboFocus(this)" onkeydown="onComboKeydown(this, event)">
+          <input type="hidden" name="product_item_id[]" class="item-value" required>
+          <div class="item-suggestions"></div>
+        </div>
       </div>
     </div>`;
   container.appendChild(div);
   const mb = document.querySelector('#saleModal .modal-body');
   mb.scrollTop = mb.scrollHeight;
-  div.querySelector('.product-filter').focus();
+  div.querySelector('.item-search').focus();
+  updateAvailCount();
 }
-function removeSaleRow(id) { const el=document.getElementById(id); if(el) el.remove(); }
+function removeSaleRow(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+  refreshAllCombos();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateAvailCount();
+  const saleModalEl = document.getElementById('saleModal');
+  if (saleModalEl) {
+    saleModalEl.addEventListener('hidden.bs.modal', () => {
+      document.querySelectorAll('.sale-item-row').forEach((row, i) => {
+        if (i > 0) { row.remove(); return; }
+        row.querySelector('.item-search').value = '';
+        row.querySelector('.item-search').classList.remove('is-selected');
+        row.querySelector('.item-value').value = '';
+        row.querySelector('.item-suggestions').classList.remove('show');
+      });
+      saleRowCount = 1;
+      updateAvailCount();
+    });
+  }
+
+  const saleForm = document.getElementById('saleForm');
+  if (saleForm) {
+    saleForm.addEventListener('submit', (e) => {
+      const empties = Array.from(document.querySelectorAll('.item-value')).filter(i => !i.value);
+      if (empties.length) {
+        e.preventDefault();
+        empties.forEach(i => i.closest('.item-combo').querySelector('.item-search').classList.add('is-invalid'));
+        empties[0].closest('.item-combo').querySelector('.item-search').focus();
+        alert('Please select a valid item (from the suggestions list) for every row before confirming the sale.');
+      }
+    });
+  }
+});
 </script>
 </body>
 </html>

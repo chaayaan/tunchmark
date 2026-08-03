@@ -194,7 +194,7 @@ $summary = $conn->query("
             <table class="table table-hover mb-0">
               <thead><tr>
                 <th>Product</th>
-                <th class="text-center">Total</th>
+                <th class="text-center">Total Quantities</th>
                 <th class="text-center">In Stock</th>
                 <th class="text-center">Sold</th>
                 <th class="text-center">Damaged</th>

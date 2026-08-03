@@ -18,18 +18,19 @@ if (isset($_POST['submit_batch'])) {
     $serial_nos  = $_POST['serial_no']  ?? [];
     $part_nos    = $_POST['part_no']    ?? [];
     $locations   = $_POST['storage_location'] ?? [];
+    $quantities  = $_POST['quantity']   ?? [];
 
     foreach ($product_ids as $i => $pid) {
         $pid      = (int)$pid;
         $serial   = $conn->real_escape_string(trim($serial_nos[$i] ?? ''));
         $part     = $conn->real_escape_string(trim($part_nos[$i]  ?? ''));
         $location = $conn->real_escape_string(trim($locations[$i] ?? ''));
-        if (!$pid || !$serial) continue;
-        $dup = $conn->query("SELECT id FROM product_items WHERE serial_no='$serial'");
-        if ($dup->num_rows > 0) {
-            $errors[] = "Serial <strong>$serial</strong> already exists — skipped.";
-        } else {
-            $loc_val = $location !== '' ? "'$location'" : 'NULL';
+        $qty      = (int)($quantities[$i] ?? 1);
+        if ($qty < 1) $qty = 1;
+        if (!$pid || $serial === '') continue;
+
+        $loc_val = $location !== '' ? "'$location'" : 'NULL';
+        for ($n = 0; $n < $qty; $n++) {
             $conn->query("INSERT INTO product_items (product_id, stock_in_id, serial_no, part_no, storage_location, in_date, status)
                           VALUES ($pid, $new_id, '$serial', '$part', $loc_val, '$stock_date', 'in_stock')");
             $added++;
@@ -44,6 +45,25 @@ if (isset($_POST['submit_batch'])) {
         $msg = "Stock-in #$new_id created with $added item(s).";
         if ($errors) $msg .= ' Skipped: ' . implode(', ', $errors);
         $msg_type = $errors ? 'warning' : 'success';
+    }
+}
+
+if (isset($_POST['edit_item'])) {
+    $item_id  = (int)$_POST['edit_item'];
+    $serial   = $conn->real_escape_string(trim($_POST['edit_serial_no'] ?? ''));
+    $part     = $conn->real_escape_string(trim($_POST['edit_part_no']  ?? ''));
+    $location = $conn->real_escape_string(trim($_POST['edit_storage_location'] ?? ''));
+    $page_back = (int)($_POST['edit_page'] ?? 1);
+
+    if ($item_id && $serial !== '') {
+        $loc_val = $location !== '' ? "'$location'" : 'NULL';
+        $conn->query("UPDATE product_items
+                      SET serial_no='$serial', part_no='$part', storage_location=$loc_val
+                      WHERE id=$item_id AND status='in_stock'");
+        header("Location: stock_in.php?page=$page_back&edited=1"); exit;
+    } else {
+        $msg = "Could not update item — Serial No is required.";
+        $msg_type = 'danger';
     }
 }
 
@@ -81,7 +101,7 @@ if ($all_sin->num_rows > 0) {
     $all_sin->data_seek(0);
     $id_list   = implode(',', $ids);
     $items_res = $conn->query("
-        SELECT pi.id, pi.stock_in_id, pi.serial_no, pi.part_no, pi.storage_location, pi.in_date, pi.status, p.product_name
+        SELECT pi.id, pi.stock_in_id, pi.product_id, pi.serial_no, pi.part_no, pi.storage_location, pi.in_date, pi.status, p.product_name
         FROM product_items pi
         JOIN products p ON p.id = pi.product_id
         WHERE pi.stock_in_id IN ($id_list)
@@ -93,6 +113,7 @@ if ($all_sin->num_rows > 0) {
 }
 
 function sinPagUrl($p) { $q = $_GET; $q['page'] = $p; return '?' . http_build_query($q); }
+if (isset($_GET['edited']) && !$msg) { $msg = 'Item updated successfully.'; $msg_type = 'success'; }
 $active_page = 'stock_in';
 ?>
 <!DOCTYPE html>
@@ -148,11 +169,25 @@ $active_page = 'stock_in';
   .item-row .remove-btn { position:absolute; top:10px; right:10px; }
 
   /* Modal scroll fix */
-  .modal-dialog { max-width:760px; }
-  #stockInModal .modal-content { max-height:90vh; display:flex; flex-direction:column; }
-  #stockInModal .modal-body { overflow-y:auto; flex:1 1 auto; }
+  .modal-dialog { max-width:900px; }
+  #stockInModal .modal-content, #editItemModal .modal-content { max-height:90vh; display:flex; flex-direction:column; }
+  #stockInModal .modal-body, #editItemModal .modal-body { overflow-y:auto; flex:1 1 auto; }
 
-  @media(max-width:991.98px){ .page-shell { margin-left:0; } .top-bar { top:52px; } }
+  /* Table horizontal-scroll wrapper — prevents columns from being
+     squeezed/merged together when the viewport (or sidebar collapse)
+     narrows the available width. */
+  .table-scroll { width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .table-scroll > table { min-width:900px; }
+
+  @media(max-width:991.98px){
+    .page-shell { margin-left:0; }
+    .top-bar { top:52px; }
+  }
+  @media(max-width:576px){
+    .main { padding:14px 10px 40px; }
+    .tb-title { font-size:.95rem; }
+    .tb-sub { display:none; }
+  }
 </style>
 </head>
 <body>
@@ -199,17 +234,17 @@ $active_page = 'stock_in';
         </div>
       <?php else: ?>
 
-      <div style="padding:0;">
+      <div class="table-scroll" style="padding:0;">
         <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
           <colgroup>
-            <col style="width:200px;">
+            <col style="width:190px;">
             <col style="width:auto;">
-            <col style="width:120px;">
+            <col style="width:170px;">
+            <col style="width:90px;">
+            <col style="width:110px;">
             <col style="width:100px;">
-            <col style="width:120px;">
             <col style="width:100px;">
-            <col style="width:100px;">
-            <col style="width:70px;">
+            <col style="width:90px;">
           </colgroup>
           <thead>
             <tr style="background:#1a1a2e;">
@@ -231,16 +266,17 @@ $active_page = 'stock_in';
   $item_count = count($items);
 ?>
 <div class="batch-block">
+  <div class="table-scroll">
   <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
     <colgroup>
-      <col style="width:200px;">   <!-- Supplier / Date -->
+      <col style="width:190px;">   <!-- Supplier / Date -->
       <col style="width:auto;">    <!-- Product — flex -->
-      <col style="width:120px;">   <!-- Serial No -->
-      <col style="width:100px;">   <!-- Part No -->
-      <col style="width:120px;">   <!-- Location -->
+      <col style="width:170px;">   <!-- Serial No -->
+      <col style="width:90px;">    <!-- Part No -->
+      <col style="width:110px;">   <!-- Location -->
       <col style="width:100px;">   <!-- In Date -->
       <col style="width:100px;">   <!-- Status -->
-      <col style="width:70px;">    <!-- Action -->
+      <col style="width:90px;">    <!-- Action -->
     </colgroup>
     <tbody>
     <?php if(empty($items)): ?>
@@ -277,7 +313,7 @@ $active_page = 'stock_in';
         </td>
 
         <!-- Serial No -->
-        <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">
+        <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;overflow-wrap:break-word;white-space:normal;">
           <code style="font-size:.82rem;background:#f3f4f6;padding:1px 6px;border-radius:4px;"><?= htmlspecialchars($item['serial_no']) ?></code>
         </td>
 
@@ -302,8 +338,20 @@ $active_page = 'stock_in';
         </td>
 
         <!-- Action -->
-        <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;text-align:center;">
+        <td style="padding:8px 14px;vertical-align:middle;border-bottom:1px solid #f9fafb;text-align:center;white-space:nowrap;">
           <?php if($item['status'] === 'in_stock'): ?>
+            <button type="button"
+               class="btn-edit-item"
+               style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1.5px solid #bfdbfe;border-radius:6px;color:#2563eb;font-size:11px;background:#fff;cursor:pointer;margin-right:4px;"
+               title="Edit"
+               data-id="<?= $item['id'] ?>"
+               data-product-name="<?= htmlspecialchars($item['product_name'], ENT_QUOTES) ?>"
+               data-serial-no="<?= htmlspecialchars($item['serial_no'], ENT_QUOTES) ?>"
+               data-part-no="<?= htmlspecialchars($item['part_no'], ENT_QUOTES) ?>"
+               data-location="<?= htmlspecialchars($item['storage_location'] ?? '', ENT_QUOTES) ?>"
+               onclick="openEditModal(this)">
+              <i class="bi bi-pencil"></i>
+            </button>
             <a href="stock_in.php?del_item=<?= $item['id'] ?>&page=<?= $page ?>"
                style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1.5px solid #fecaca;border-radius:6px;color:#dc2626;font-size:11px;text-decoration:none;"
                onclick="return confirm('Remove this item?')" title="Remove">
@@ -318,6 +366,7 @@ $active_page = 'stock_in';
     <?php endif; ?>
     </tbody>
   </table>
+  </div>
 </div>
 <?php endwhile; ?>
 
@@ -389,7 +438,7 @@ $active_page = 'stock_in';
           <div id="itemsContainer">
             <div class="item-row" id="item-0">
               <div class="row g-2">
-                <div class="col-sm-4">
+                <div class="col-sm-2">
                   <label class="form-label form-label-sm">Product <span class="text-danger">*</span></label>
                   <select name="product_id[]" class="form-select form-select-sm" required>
                     <option value="">— Product —</option>
@@ -398,7 +447,7 @@ $active_page = 'stock_in';
                     <?php endwhile; ?>
                   </select>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-sm-4">
                   <label class="form-label form-label-sm">Serial No <span class="text-danger">*</span></label>
                   <input type="text" name="serial_no[]" class="form-control form-control-sm" placeholder="SN-0001" required>
                 </div>
@@ -406,18 +455,62 @@ $active_page = 'stock_in';
                   <label class="form-label form-label-sm">Part No <span class="text-danger">*</span></label>
                   <input type="text" name="part_no[]" class="form-control form-control-sm" placeholder="PN-0001" required>
                 </div>
-                <div class="col-sm-3">
+                <div class="col-sm-2">
                   <label class="form-label form-label-sm">Location</label>
                   <input type="text" name="storage_location[]" class="form-control form-control-sm" placeholder="e.g. Rack A-3">
+                </div>
+                <div class="col-sm-2">
+                  <label class="form-label form-label-sm">Qty <span class="text-danger">*</span></label>
+                  <input type="number" name="quantity[]" class="form-control form-control-sm" value="1" min="1" required>
                 </div>
               </div>
             </div>
           </div>
-          <div class="text-muted mt-2" style="font-size:.75rem;"><i class="bi bi-info-circle me-1"></i>Duplicate serial numbers will be skipped automatically.</div>
+          <div class="text-muted mt-2" style="font-size:.75rem;"><i class="bi bi-info-circle me-1"></i>If Qty is more than 1, that item will be inserted that many times using the same Serial No and Part No.</div>
         </div>
         <div class="modal-footer" style="border-top:1px solid #f0f0f0;padding:14px 20px;flex-shrink:0;">
           <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
           <button type="submit" class="btn btn-dark btn-sm px-4"><i class="bi bi-check-lg me-1"></i>Submit Stock In</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT ITEM MODAL -->
+<div class="modal fade" id="editItemModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="border:none;border-radius:14px;overflow:hidden;">
+      <form method="POST" id="editItemForm">
+        <input type="hidden" name="edit_item" id="edit_item_id" value="">
+        <input type="hidden" name="edit_page" value="<?= $page ?>">
+        <div class="modal-header" style="background:#1a1a2e;border:none;flex-shrink:0;">
+          <h5 class="modal-title" style="color:#fff;font-size:.95rem;font-weight:700;">
+            <i class="bi bi-pencil me-2"></i>Edit Item
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body p-4">
+          <div class="mb-3">
+            <label class="form-label form-label-sm fw-semibold">Product</label>
+            <div id="edit_product_display" style="font-size:.875rem;font-weight:600;color:#374151;background:#f3f4f6;border-radius:6px;padding:6px 10px;"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label form-label-sm fw-semibold">Serial No <span class="text-danger">*</span></label>
+            <input type="text" name="edit_serial_no" id="edit_serial_no" class="form-control form-control-sm" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label form-label-sm fw-semibold">Part No</label>
+            <input type="text" name="edit_part_no" id="edit_part_no" class="form-control form-control-sm">
+          </div>
+          <div class="mb-1">
+            <label class="form-label form-label-sm fw-semibold">Location</label>
+            <input type="text" name="edit_storage_location" id="edit_storage_location" class="form-control form-control-sm" placeholder="e.g. Rack A-3">
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid #f0f0f0;padding:14px 20px;flex-shrink:0;">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-dark btn-sm px-4"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
         </div>
       </form>
     </div>
@@ -447,11 +540,11 @@ function addItemRow() {
       <i class="bi bi-x-lg"></i>
     </button>
     <div class="row g-2">
-      <div class="col-sm-4">
+      <div class="col-sm-2">
         <label class="form-label form-label-sm">Product <span class="text-danger">*</span></label>
         <select name="product_id[]" class="form-select form-select-sm" required>${productOptions}</select>
       </div>
-      <div class="col-sm-3">
+      <div class="col-sm-4">
         <label class="form-label form-label-sm">Serial No <span class="text-danger">*</span></label>
         <input type="text" name="serial_no[]" class="form-control form-control-sm" placeholder="SN-000${idx+1}" required>
       </div>
@@ -459,15 +552,30 @@ function addItemRow() {
         <label class="form-label form-label-sm">Part No</label>
         <input type="text" name="part_no[]" class="form-control form-control-sm" placeholder="Optional">
       </div>
-      <div class="col-sm-3">
+      <div class="col-sm-2">
         <label class="form-label form-label-sm">Location</label>
         <input type="text" name="storage_location[]" class="form-control form-control-sm" placeholder="e.g. Rack A-3">
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label form-label-sm">Qty <span class="text-danger">*</span></label>
+        <input type="number" name="quantity[]" class="form-control form-control-sm" value="1" min="1" required>
       </div>
     </div>`;
   container.appendChild(div);
   div.querySelector('input[name="serial_no[]"]').focus();
 }
 function removeRow(id) { const el=document.getElementById(id); if(el) el.remove(); }
+
+function openEditModal(btn) {
+  document.getElementById('edit_item_id').value = btn.dataset.id;
+  document.getElementById('edit_serial_no').value = btn.dataset.serialNo;
+  document.getElementById('edit_part_no').value = btn.dataset.partNo;
+  document.getElementById('edit_storage_location').value = btn.dataset.location;
+  document.getElementById('edit_product_display').textContent = btn.dataset.productName;
+  const modal = new bootstrap.Modal(document.getElementById('editItemModal'));
+  modal.show();
+}
+
 </script>
 </body>
 </html>
