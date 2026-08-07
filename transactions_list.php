@@ -396,7 +396,10 @@ if ($r) while ($row = mysqli_fetch_assoc($r)) $branches[] = $row;
       <div class="tb-title">All Transactions</div>
       <div class="tb-sub">Income & expense history</div>
     </div>
-    <div class="tb-right">
+    <div class="tb-right" style="display:flex;gap:8px;">
+      <a href="export_finance_panel_transactions_csv.php?<?= http_build_query(['type'=>$filterType,'date_from'=>$filterDateFrom,'date_to'=>$filterDateTo]) ?>" class="tb-btn" style="background:#0891b2;">
+        <i class="fas fa-file-csv" style="font-size:.7rem;"></i> Export CSV
+      </a>
       <a href="income_expense.php" class="tb-btn">
         <i class="fas fa-plus" style="font-size:.7rem;"></i> New Entry
       </a>

@@ -197,6 +197,11 @@ $totalMargin = $totalIncome - $totalExpenses;
             </div>
         </div>
         <div class="tb-right">
+            <div style="padding-bottom:1px;">
+                <a href="export_finance_panel_yearly_reports_csv.php?<?= http_build_query(['year'=>$selectedYear,'month'=>$selectedMonth]) ?>" class="btn-pos" style="height:34px;padding:0 16px;background:#0891b2;color:#fff;">
+                    <i class="fas fa-file-csv" style="font-size:.7rem;"></i> Export CSV
+                </a>
+            </div>
             <a href="transactions_list.php" class="btn-pos btn-ghost"><i class="fas fa-list" style="font-size:.6rem;"></i> Transactions</a>
             <a href="account.php" class="btn-pos btn-ghost"><i class="fas fa-arrow-left" style="font-size:.6rem;"></i> Finance Panel</a>
         </div>
