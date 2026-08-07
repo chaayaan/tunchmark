@@ -74,6 +74,23 @@ if (isset($_GET['del_item'])) {
     header("Location: stock_in.php?page=$page_back"); exit;
 }
 
+if (isset($_GET['del_batch'])) {
+    $batch_id  = (int)$_GET['del_batch'];
+    $page_back = (int)($_GET['page'] ?? 1);
+
+    // Safety check: only delete the batch if it has NO product_items attached
+    // (either it was created empty, or every item under it has since been removed).
+    $chk = $conn->query("SELECT COUNT(*) c FROM product_items WHERE stock_in_id=$batch_id");
+    $remaining = (int)$chk->fetch_assoc()['c'];
+
+    if ($remaining === 0) {
+        $conn->query("DELETE FROM stock_in WHERE id=$batch_id");
+        header("Location: stock_in.php?page=$page_back&batch_deleted=1"); exit;
+    } else {
+        header("Location: stock_in.php?page=$page_back&batch_delete_blocked=1"); exit;
+    }
+}
+
 $per_page    = 50;
 $page        = max(1, (int)($_GET['page'] ?? 1));
 $offset      = ($page - 1) * $per_page;
@@ -114,6 +131,8 @@ if ($all_sin->num_rows > 0) {
 
 function sinPagUrl($p) { $q = $_GET; $q['page'] = $p; return '?' . http_build_query($q); }
 if (isset($_GET['edited']) && !$msg) { $msg = 'Item updated successfully.'; $msg_type = 'success'; }
+if (isset($_GET['batch_deleted']) && !$msg) { $msg = 'Stock-in batch deleted successfully.'; $msg_type = 'success'; }
+if (isset($_GET['batch_delete_blocked']) && !$msg) { $msg = 'Could not delete batch — it still has items attached. Remove all items first.'; $msg_type = 'danger'; }
 $active_page = 'stock_in';
 ?>
 <!DOCTYPE html>
@@ -287,7 +306,15 @@ $active_page = 'stock_in';
           <div style="font-size:.78rem;color:#6b7280;margin-top:2px;"><i class="bi bi-calendar3 me-1"></i><?= date('d M Y', strtotime($sin['stock_date'])) ?></div>
           <div style="font-size:.7rem;color:#9ca3af;font-family:monospace;">Batch #<?= $sin['id'] ?></div>
         </td>
-        <td colspan="7" style="padding:10px 14px;color:#9ca3af;font-size:.875rem;font-style:italic;">No items in this batch</td>
+        <td colspan="6" style="padding:10px 14px;color:#9ca3af;font-size:.875rem;font-style:italic;">No items in this batch</td>
+        <td style="padding:10px 14px;vertical-align:middle;text-align:center;">
+          <button type="button"
+             style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1.5px solid #fecaca;border-radius:6px;color:#dc2626;font-size:11px;background:#fff;cursor:pointer;"
+             title="Delete Batch"
+             onclick="openConfirmModal('stock_in.php?del_batch=<?= $sin['id'] ?>&page=<?= $page ?>', 'Delete this entire stock-in batch? This cannot be undone.')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </td>
       </tr>
     <?php else: ?>
       <?php foreach($items as $idx => $item): ?>
@@ -352,11 +379,12 @@ $active_page = 'stock_in';
                onclick="openEditModal(this)">
               <i class="bi bi-pencil"></i>
             </button>
-            <a href="stock_in.php?del_item=<?= $item['id'] ?>&page=<?= $page ?>"
-               style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1.5px solid #fecaca;border-radius:6px;color:#dc2626;font-size:11px;text-decoration:none;"
-               onclick="return confirm('Remove this item?')" title="Remove">
+            <button type="button"
+               style="display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1.5px solid #fecaca;border-radius:6px;color:#dc2626;font-size:11px;background:#fff;cursor:pointer;"
+               title="Remove"
+               onclick="openConfirmModal('stock_in.php?del_item=<?= $item['id'] ?>&page=<?= $page ?>', 'Remove this item? This cannot be undone.')">
               <i class="bi bi-trash"></i>
-            </a>
+            </button>
           <?php else: ?>
             <span style="color:#d1d5db;">—</span>
           <?php endif; ?>
@@ -517,6 +545,29 @@ $active_page = 'stock_in';
   </div>
 </div>
 
+<!-- DELETE CONFIRMATION MODAL -->
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+    <div class="modal-content" style="border:none;border-radius:14px;overflow:hidden;">
+      <div class="modal-header" style="background:#1a1a2e;border:none;">
+        <h5 class="modal-title" style="color:#fff;font-size:.95rem;font-weight:700;">
+          <i class="bi bi-exclamation-triangle me-2" style="color:#f87171;"></i>Confirm Deletion
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <p id="confirmDeleteMessage" style="font-size:.9rem;color:#374151;margin:0;">Are you sure?</p>
+      </div>
+      <div class="modal-footer" style="border-top:1px solid #f0f0f0;padding:14px 20px;">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <a href="#" id="confirmDeleteBtn" class="btn btn-danger btn-sm px-4">
+          <i class="bi bi-trash me-1"></i>Delete
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 const productOptions = `<?php
@@ -573,6 +624,13 @@ function openEditModal(btn) {
   document.getElementById('edit_storage_location').value = btn.dataset.location;
   document.getElementById('edit_product_display').textContent = btn.dataset.productName;
   const modal = new bootstrap.Modal(document.getElementById('editItemModal'));
+  modal.show();
+}
+
+function openConfirmModal(url, message) {
+  document.getElementById('confirmDeleteMessage').textContent = message;
+  document.getElementById('confirmDeleteBtn').setAttribute('href', url);
+  const modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
   modal.show();
 }
 
