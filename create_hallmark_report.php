@@ -330,16 +330,16 @@ if (isset($_GET['report_id'])) {
         .hallmark-value{font-size:40px;font-weight:bold;line-height:1;color:#000;text-align:center;word-wrap:break-word;word-break:break-word;max-width:100%;font-family:'Times New Roman',Times,serif;}
         .hallmark-label{font-size:15px;font-weight:700;text-align:center;padding:4px;color:#000;line-height:1;font-family:'Times New Roman',Times,serif;}
         /* Lower section: FIXED 153px tall so the overall report size never changes.
-           Left  = jewellery image: height 100%, width auto, NO border / margin / radius / letterbox.
+           Left  = jewellery image: height 100%, width auto, faint 1px grey border only, no margin / radius / letterbox.
            Right = whatever width the image leaves free; signature + authenticity note adapt to it. */
         .report-lower{display:flex;align-items:stretch;gap:12px;height:153px;padding:3px 8px;overflow:hidden;}
         .report-photo-col{flex:0 0 auto;height:100%;display:block;margin:0;padding:0;}
-        .report-photo{height:100%;width:auto;max-width:440px;display:block;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;object-fit:contain;}
-        .report-sign-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;container-type:inline-size;}
-        .report-sign-box{width:300px;max-width:100%;margin:0 0 5px auto;border-top:1px solid #000;padding-top:4px;text-align:center;}
+        .report-photo{height:100%;width:auto;max-width:440px;display:block;margin:0;padding:0;border:1px solid rgba(0,0,0,.14);border-radius:0;box-shadow:none;object-fit:contain;}
+        .report-sign-col{flex:0 1 240px;margin-left:auto;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;container-type:inline-size;} /* 240px = same width as .hallmark-section above, right-aligned under it */
+        .report-sign-box{width:100%;margin:0 0 5px;border-top:1px solid #000;padding-top:4px;text-align:center;}
         .report-sign-box span{font-size:10px;font-weight:700;color:#000;letter-spacing:.03em;}
         /* Note: fills the free column; font scales with that column's width, lines are balanced */
-        .auth-note{flex:0 0 auto;text-align:center;font-size:9px;font-size:clamp(8px,2.4cqw,11px);line-height:1.3;color:#006400;margin:0;text-wrap:balance;overflow-wrap:break-word;}
+        .auth-note{flex:0 0 auto;text-align:center;font-size:9px;font-size:clamp(8px,4.2cqw,10px);line-height:1.3;color:#006400;margin:0;text-wrap:balance;overflow-wrap:break-word;}
         .weight-conversion{font-size:13px;color:#000;font-weight:600;margin-left:0;}
         .report-actions{display:flex;align-items:center;justify-content:center;gap:10px;padding:16px 18px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);flex-wrap:wrap;}
 
