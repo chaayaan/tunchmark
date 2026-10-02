@@ -60,7 +60,7 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
 
     // ── Validate image ─────────────────────────────────────────────────────
     $allowed_types = ['image/jpeg','image/jpg','image/png','image/webp'];
-    $max_size      = 45 * 1024; // 45 KB — client compresses to 30-40 KB, this is a small safety buffer
+    $max_size      = 90 * 1024; // 90 KB — client compresses to 70-80 KB, this is a small safety buffer
     $photo_info    = null;
 
     if (isset($_FILES['photo']) && $_FILES['photo']['error'] !== UPLOAD_ERR_NO_FILE) {
@@ -321,14 +321,25 @@ if (isset($_GET['report_id'])) {
         #qrcode{margin:0;line-height:0;}
         #qrcode img{display:block;margin:0 auto;}
         .qr-date{font-size:10px;color:#000;font-weight:700;line-height:1.2;margin:1px 0 0;padding:0;}
-        .main-box{border:2.5px solid #000;display:flex;margin:0 8px;height:100px;}
-        .checkbox-section{flex:1;padding:8px 12px;display:grid;grid-template-columns:repeat(4,1fr);gap:5px 15px;align-content:center;}
+        .main-box{border:2.5px solid #000;display:flex;margin:0 8px;height:84px;} /* was 100px */
+        .checkbox-section{flex:1;padding:3px 12px;display:grid;grid-template-columns:repeat(4,1fr);gap:5px 15px;align-content:center;} /* padding was 8px 12px */
         .checkbox-item{display:flex;align-items:center;font-size:12px;line-height:1;font-weight:600;color:#000;}
         .checkbox-box{width:14px;height:14px;border:2px solid #000;margin-right:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;line-height:1;}
         .hallmark-section{width:240px;border-left:2.5px solid #000;display:flex;flex-direction:column;}
-        .hallmark-value-container{flex:1;display:flex;align-items:center;justify-content:center;border-bottom:2.5px solid #000;padding:8px 12px;overflow:hidden;}
+        .hallmark-value-container{flex:1;display:flex;align-items:center;justify-content:center;border-bottom:2.5px solid #000;padding:4px 12px;overflow:hidden;} /* padding was 8px 12px */
         .hallmark-value{font-size:40px;font-weight:bold;line-height:1;color:#000;text-align:center;word-wrap:break-word;word-break:break-word;max-width:100%;font-family:'Times New Roman',Times,serif;}
         .hallmark-label{font-size:15px;font-weight:700;text-align:center;padding:4px;color:#000;line-height:1;font-family:'Times New Roman',Times,serif;}
+        /* Lower section: FIXED 153px tall so the overall report size never changes.
+           Left  = jewellery image: height 100%, width auto, NO border / margin / radius / letterbox.
+           Right = whatever width the image leaves free; signature + authenticity note adapt to it. */
+        .report-lower{display:flex;align-items:stretch;gap:12px;height:153px;padding:3px 8px;overflow:hidden;}
+        .report-photo-col{flex:0 0 auto;height:100%;display:block;margin:0;padding:0;}
+        .report-photo{height:100%;width:auto;max-width:440px;display:block;margin:0;padding:0;border:0;border-radius:0;box-shadow:none;object-fit:contain;}
+        .report-sign-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;container-type:inline-size;}
+        .report-sign-box{width:300px;max-width:100%;margin:0 0 5px auto;border-top:1px solid #000;padding-top:4px;text-align:center;}
+        .report-sign-box span{font-size:10px;font-weight:700;color:#000;letter-spacing:.03em;}
+        /* Note: fills the free column; font scales with that column's width, lines are balanced */
+        .auth-note{flex:0 0 auto;text-align:center;font-size:9px;font-size:clamp(8px,2.4cqw,11px);line-height:1.3;color:#006400;margin:0;text-wrap:balance;overflow-wrap:break-word;}
         .weight-conversion{font-size:13px;color:#000;font-weight:600;margin-left:0;}
         .report-actions{display:flex;align-items:center;justify-content:center;gap:10px;padding:16px 18px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);flex-wrap:wrap;}
 
@@ -512,7 +523,7 @@ if (isset($_GET['report_id'])) {
                     <?php endif; ?>
                     <div class="dz-wrap" style="max-width:320px;">
                         <label class="lbl">Sample Photo
-                            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · auto-compressed to ~30-40 KB</span>
+                            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · auto-compressed to ~70-80 KB</span>
                         </label>
                         <div class="drop-zone" id="dz_photo"
                              onclick="document.getElementById('photo').click()"
@@ -640,31 +651,25 @@ if (isset($_GET['report_id'])) {
                 </div>
             </div>
 
-            <!-- Bottom 2-col: photo (58%) | signature (42%) — always shown -->
-            <div style="display:table;width:100%;margin:6px 0 4px;">
-
-                <!-- LEFT: sample photo -->
-                <div style="display:table-cell;width:58.333%;vertical-align:bottom;padding:0 8px;">
-                    <?php if (!empty($report_image)): ?>
-                    <img src="<?= htmlspecialchars($report_image) ?>" alt="Sample photo"
-                        style="width:auto;height:105px;object-fit:contain;border-radius:4px;border:1px solid #ddd;display:block;">
-                    <?php endif; ?>
+            <!-- Lower section: image (left, full height) | signature + authenticity note (right) -->
+            <div class="report-lower">
+                <?php if (!empty($report_image)): ?>
+                <div class="report-photo-col">
+                    <img src="<?= htmlspecialchars($report_image) ?>" alt="Sample photo" class="report-photo">
                 </div>
+                <?php endif; ?>
 
-                <!-- RIGHT: authorized signature always shown, centered at bottom -->
-                <div style="display:table-cell;width:41.667%;vertical-align:bottom;padding:0 8px 0 0;">
-                    <div style="display:flex;flex-direction:column;justify-content:flex-end;min-height:80px;">
-                        <div style="border-top:1px solid #000;padding-top:4px;text-align:center;margin-top:28px;">
-                            <span style="font-size:10px;font-weight:700;color:#000;letter-spacing:.03em;">Authorized Signature</span>
-                        </div>
+                <div class="report-sign-col">
+                    <div class="report-sign-box">
+                        <span>Authorized Signature</span>
+                    </div>
+                    <div class="auth-note">
+                        To check the authenticity of this hallmark, scan the QR code or visit
+                        <strong>www.rajaiswari.com</strong> and enter HUID
+                        <strong><?= htmlspecialchars($report_data['huid'] ?? '') ?></strong> to verify this hallmark.
                     </div>
                 </div>
-
-            </div><!-- /bottom 2-col -->
-        <div style="text-align:center;font-size:11px;color:#006400;margin:6px 0;;">
-            To check the authenticity of this hallmark, scan the QR code or visit <b>www.rajaiswari.com</b> and enter HUID <b><?= htmlspecialchars($report_data['huid'] ?? '') ?></b> to verify this hallmark.
-        </div>
-
+            </div><!-- /report-lower -->
         </div><!-- /reportPreview -->      
     </div><!-- /hallmark-preview -->
 
@@ -775,9 +780,11 @@ function selectBillItem(i) {
 
 // ── Drag & Drop Photo Zone + Compression Pipeline ──────────────────────────
 const ALLOWED_TYPES    = ['image/jpeg','image/jpg','image/png','image/webp'];
-const TARGET_MIN_BYTES = 30 * 1024; // 30 KB
-const TARGET_MAX_BYTES = 40 * 1024; // 40 KB
+const TARGET_MIN_BYTES = 70 * 1024; // 70 KB (was 30 KB)
+const TARGET_MAX_BYTES = 80 * 1024; // 80 KB (was 40 KB)
 const MAX_DIMENSION    = 1200;      // longest edge in px — plenty of detail for a sample close-up
+const QUALITY_FLOOR    = 0.55;      // never let JPEG quality drop below this — shrink dimensions instead
+const QUALITY_CEIL     = 0.95;
 
 function loadImageFromFile(file) {
     return new Promise((resolve, reject) => {
@@ -811,12 +818,12 @@ function canvasToBlob(canvas, quality) {
 }
 
 // Binary-searches JPEG quality to land the file size inside [minBytes,maxBytes].
-// If even the lowest acceptable quality is still too big, shrinks dimensions and retries —
-// this preserves visible detail far better than just cranking quality down on a huge canvas.
+// Quality is kept at or above QUALITY_FLOOR; only if that is still too big do we shrink
+// dimensions slightly (x0.9 per step) and search again — so detail is preserved first.
 async function compressToRange(canvas, minBytes, maxBytes, dimAttempt = 0) {
-    let lo = 0.15, hi = 0.95, best = null;
+    let lo = QUALITY_FLOOR, hi = QUALITY_CEIL, best = null;
 
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 9; i++) {
         const mid  = (lo + hi) / 2;
         const blob = await canvasToBlob(canvas, mid);
         if (!blob) break;
@@ -832,10 +839,10 @@ async function compressToRange(canvas, minBytes, maxBytes, dimAttempt = 0) {
 
     if (best && best.size <= maxBytes) return best;
 
-    if (dimAttempt < 5 && canvas.width > 250) {
+    if (dimAttempt < 8 && canvas.width > 250) {
         const smaller = document.createElement('canvas');
-        smaller.width  = Math.round(canvas.width  * 0.82);
-        smaller.height = Math.round(canvas.height * 0.82);
+        smaller.width  = Math.round(canvas.width  * 0.9);
+        smaller.height = Math.round(canvas.height * 0.9);
         const ctx = smaller.getContext('2d');
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
@@ -843,7 +850,7 @@ async function compressToRange(canvas, minBytes, maxBytes, dimAttempt = 0) {
         return compressToRange(smaller, minBytes, maxBytes, dimAttempt + 1);
     }
 
-    return best || await canvasToBlob(canvas, 0.15);
+    return best || await canvasToBlob(canvas, QUALITY_FLOOR);
 }
 
 async function compressFileToTarget(file) {
