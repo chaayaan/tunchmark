@@ -60,7 +60,7 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
 
     // ── Validate image ─────────────────────────────────────────────────────
     $allowed_types = ['image/jpeg','image/jpg','image/png','image/webp'];
-    $max_size      = 90 * 1024; // 90 KB — client compresses to 70-80 KB, this is a small safety buffer
+    $max_size      = 90 * 1024; // 90 KB — client compresses to max 80 KB, this is a small safety buffer
     $photo_info    = null;
 
     if (isset($_FILES['photo']) && $_FILES['photo']['error'] !== UPLOAD_ERR_NO_FILE) {
@@ -260,6 +260,7 @@ if (isset($_GET['report_id'])) {
         .dz-compressing-overlay i{font-size:1.3rem;color:var(--cyan);}
         .dz-compressing-overlay span{font-size:.75rem;font-weight:600;color:var(--t3);}
         .drop-zone.dz-compressing .dz-compressing-overlay{display:flex;}
+        .dz-info{font-size:.7rem;color:var(--t4);min-height:1em;}
 
         /* ── Webcam capture ── */
         .btn-webcam{
@@ -321,12 +322,12 @@ if (isset($_GET['report_id'])) {
         #qrcode{margin:0;line-height:0;}
         #qrcode img{display:block;margin:0 auto;}
         .qr-date{font-size:10px;color:#000;font-weight:700;line-height:1.2;margin:1px 0 0;padding:0;}
-        .main-box{border:2.5px solid #000;display:flex;margin:0 8px;height:84px;} /* was 100px */
-        .checkbox-section{flex:1;padding:3px 12px;display:grid;grid-template-columns:repeat(4,1fr);gap:5px 15px;align-content:center;} /* padding was 8px 12px */
+        .main-box{border:2.5px solid #000;display:flex;margin:0 8px;height:84px;}
+        .checkbox-section{flex:1;padding:3px 12px;display:grid;grid-template-columns:repeat(4,1fr);gap:5px 15px;align-content:center;}
         .checkbox-item{display:flex;align-items:center;font-size:12px;line-height:1;font-weight:600;color:#000;}
         .checkbox-box{width:14px;height:14px;border:2px solid #000;margin-right:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;line-height:1;}
         .hallmark-section{width:240px;border-left:2.5px solid #000;display:flex;flex-direction:column;}
-        .hallmark-value-container{flex:1;display:flex;align-items:center;justify-content:center;border-bottom:2.5px solid #000;padding:4px 12px;overflow:hidden;} /* padding was 8px 12px */
+        .hallmark-value-container{flex:1;display:flex;align-items:center;justify-content:center;border-bottom:2.5px solid #000;padding:4px 12px;overflow:hidden;}
         .hallmark-value{font-size:40px;font-weight:bold;line-height:1;color:#000;text-align:center;word-wrap:break-word;word-break:break-word;max-width:100%;font-family:'Times New Roman',Times,serif;}
         .hallmark-label{font-size:15px;font-weight:700;text-align:center;padding:4px;color:#000;line-height:1;font-family:'Times New Roman',Times,serif;}
         /* Lower section: FIXED 153px tall so the overall report size never changes.
@@ -335,10 +336,9 @@ if (isset($_GET['report_id'])) {
         .report-lower{display:flex;align-items:stretch;gap:12px;height:153px;padding:3px 8px;overflow:hidden;}
         .report-photo-col{flex:0 0 auto;height:100%;display:block;margin:0;padding:0;}
         .report-photo{height:100%;width:auto;max-width:440px;display:block;margin:0;padding:0;border:1px solid rgba(0,0,0,.14);border-radius:0;box-shadow:none;object-fit:contain;}
-        .report-sign-col{flex:0 1 240px;margin-left:auto;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;container-type:inline-size;} /* 240px = same width as .hallmark-section above, right-aligned under it */
+        .report-sign-col{flex:0 1 240px;margin-left:auto;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;container-type:inline-size;}
         .report-sign-box{width:100%;margin:0 0 5px;border-top:1px solid #000;padding-top:4px;text-align:center;}
         .report-sign-box span{font-size:10px;font-weight:700;color:#000;letter-spacing:.03em;}
-        /* Note: fills the free column; font scales with that column's width, lines are balanced */
         .auth-note{flex:0 0 auto;text-align:center;font-size:9px;font-size:clamp(8px,4.2cqw,10px);line-height:1.3;color:#006400;margin:0;text-wrap:balance;overflow-wrap:break-word;}
         .weight-conversion{font-size:13px;color:#000;font-weight:600;margin-left:0;}
         .report-actions{display:flex;align-items:center;justify-content:center;gap:10px;padding:16px 18px;background:var(--s2);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh);flex-wrap:wrap;}
@@ -523,7 +523,7 @@ if (isset($_GET['report_id'])) {
                     <?php endif; ?>
                     <div class="dz-wrap" style="max-width:320px;">
                         <label class="lbl">Sample Photo
-                            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · auto-compressed to ~70-80 KB</span>
+                            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · max 80 KB, detail preserved</span>
                         </label>
                         <div class="drop-zone" id="dz_photo"
                              onclick="document.getElementById('photo').click()"
@@ -534,11 +534,11 @@ if (isset($_GET['report_id'])) {
                             <div class="dz-placeholder">
                                 <i class="fas fa-cloud-arrow-up"></i>
                                 <span>Drag & drop or click</span>
-                                <small>JPG · PNG · WEBP · any size, auto-compressed</small>
+                                <small>JPG · PNG · WEBP · any size, auto-optimized</small>
                             </div>
                             <div class="dz-compressing-overlay">
                                 <i class="fas fa-spinner fa-spin"></i>
-                                <span>Compressing...</span>
+                                <span>Optimizing...</span>
                             </div>
                             <img id="photo_prev" class="dz-preview" alt="Photo preview">
                             <button type="button" class="dz-clear"
@@ -546,6 +546,7 @@ if (isset($_GET['report_id'])) {
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
+                        <div class="dz-info" id="photo_info"></div>
                         <input type="file" id="photo" name="photo" class="dz-input"
                                accept=".jpg,.jpeg,.png,.webp"
                                capture="environment"
@@ -587,11 +588,6 @@ if (isset($_GET['report_id'])) {
                         <span class="info-colon">:</span>
                         <span class="info-value"><?= htmlspecialchars($report_data['customer_name']) ?></span>
                     </div>
-                    <!-- <div class="customer-info-line">
-                        <span class="info-label">Bill No</span>
-                        <span class="info-colon">:</span>
-                        <span class="info-value"><?= htmlspecialchars($report_data['order_id']) ?></span>
-                    </div> -->
                     <div class="customer-info-line">
                         <span class="info-label">HUID</span>
                         <span class="info-colon">:</span>
@@ -670,7 +666,7 @@ if (isset($_GET['report_id'])) {
                     </div>
                 </div>
             </div><!-- /report-lower -->
-        </div><!-- /reportPreview -->      
+        </div><!-- /reportPreview -->
     </div><!-- /hallmark-preview -->
 
     <div class="report-actions">
@@ -778,92 +774,90 @@ function selectBillItem(i) {
     event.currentTarget.classList.add('selected');
 }
 
-// ── Drag & Drop Photo Zone + Compression Pipeline ──────────────────────────
-const ALLOWED_TYPES    = ['image/jpeg','image/jpg','image/png','image/webp'];
-const TARGET_MIN_BYTES = 70 * 1024; // 70 KB (was 30 KB)
-const TARGET_MAX_BYTES = 80 * 1024; // 80 KB (was 40 KB)
-const MAX_DIMENSION    = 1200;      // longest edge in px — plenty of detail for a sample close-up
-const QUALITY_FLOOR    = 0.55;      // never let JPEG quality drop below this — shrink dimensions instead
-const QUALITY_CEIL     = 0.95;
+// ── Photo compression: max 80 KB, detail-first ─────────────────────────────
+// Strategy:
+//   1. File already <= 80 KB  -> keep the original bytes untouched.
+//   2. Otherwise keep quality FIXED and high, and reduce pixel dimensions only
+//      (binary search). Always re-encodes from the ORIGINAL image, never from an
+//      already-shrunk copy, so there is no cumulative blur.
+//   3. WebP when the browser can encode it (smaller at same quality), else JPEG.
+const ALLOWED_TYPES = ['image/jpeg','image/jpg','image/png','image/webp'];
+const MAX_BYTES     = 80 * 1024;   // hard limit (PHP allows 90 KB as safety buffer)
+const MAX_DIMENSION = 1600;        // never start larger than this
+const MIN_DIMENSION = 400;         // never shrink below this
+const QUALITY       = 0.82;        // fixed — only dimensions change
+const LOW_QUALITY   = 0.70;        // last-resort fallback
+
+const _probe = document.createElement('canvas'); _probe.width = _probe.height = 1;
+const OUT_TYPE = _probe.toDataURL('image/webp').startsWith('data:image/webp') ? 'image/webp' : 'image/jpeg';
+const OUT_EXT  = OUT_TYPE === 'image/webp' ? 'webp' : 'jpg';
 
 function loadImageFromFile(file) {
     return new Promise((resolve, reject) => {
         const img = new Image();
         const url = URL.createObjectURL(file);
-        img.onload = () => resolve({ img, url });
+        img.onload  = () => { URL.revokeObjectURL(url); resolve(img); };
         img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read image file.')); };
         img.src = url;
     });
 }
 
-function drawToCanvas(img, maxDim) {
-    let { width, height } = img;
-    if (width > maxDim || height > maxDim) {
-        const scale = maxDim / Math.max(width, height);
-        width  = Math.round(width  * scale);
-        height = Math.round(height * scale);
-    }
-    const canvas = document.createElement('canvas');
-    canvas.width  = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
+function srcSize(src) {
+    return {
+        w: src.naturalWidth  || src.videoWidth  || src.width,
+        h: src.naturalHeight || src.videoHeight || src.height
+    };
+}
+
+// Encodes from the original source (image or canvas) at the given scale/quality
+function encode(src, scale, quality) {
+    const { w, h } = srcSize(src);
+    const c = document.createElement('canvas');
+    c.width  = Math.max(1, Math.round(w * scale));
+    c.height = Math.max(1, Math.round(h * scale));
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff';                 // transparent PNGs get white, not black
+    ctx.fillRect(0, 0, c.width, c.height);
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(img, 0, 0, width, height);
-    return canvas;
+    ctx.drawImage(src, 0, 0, c.width, c.height);
+    return new Promise(res => c.toBlob(res, OUT_TYPE, quality));
 }
 
-function canvasToBlob(canvas, quality) {
-    return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
-}
+const QUALITY_MAX = 0.97;   // highest quality we will try when budget allows
 
-// Binary-searches JPEG quality to land the file size inside [minBytes,maxBytes].
-// Quality is kept at or above QUALITY_FLOOR; only if that is still too big do we shrink
-// dimensions slightly (x0.9 per step) and search again — so detail is preserved first.
-async function compressToRange(canvas, minBytes, maxBytes, dimAttempt = 0) {
-    let lo = QUALITY_FLOOR, hi = QUALITY_CEIL, best = null;
+async function compressToLimit(src) {
+    const { w, h } = srcSize(src);
+    const longest  = Math.max(w, h);
+    const hiScale  = Math.min(1, MAX_DIMENSION / longest);
+    const loScale  = Math.min(hiScale, MIN_DIMENSION / longest);
 
-    for (let i = 0; i < 9; i++) {
-        const mid  = (lo + hi) / 2;
-        const blob = await canvasToBlob(canvas, mid);
-        if (!blob) break;
-
-        if (blob.size > maxBytes) {
-            hi = mid;
-        } else {
-            best = blob;
-            if (blob.size >= minBytes) break; // landed inside the target range
-            lo = mid; // still room to push quality up
+    // Pass 1: full size. If it fits at the base quality, push quality up as far as the budget allows
+    const base = await encode(src, hiScale, QUALITY);
+    if (base && base.size <= MAX_BYTES) {
+        let best = base, lo = QUALITY, hi = QUALITY_MAX;
+        for (let i = 0; i < 5; i++) {
+            const mid = (lo + hi) / 2;
+            const b   = await encode(src, hiScale, mid);
+            if (b && b.size <= MAX_BYTES) { best = b; lo = mid; } else { hi = mid; }
         }
+        return best;
     }
 
-    if (best && best.size <= maxBytes) return best;
-
-    if (dimAttempt < 8 && canvas.width > 250) {
-        const smaller = document.createElement('canvas');
-        smaller.width  = Math.round(canvas.width  * 0.9);
-        smaller.height = Math.round(canvas.height * 0.9);
-        const ctx = smaller.getContext('2d');
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(canvas, 0, 0, smaller.width, smaller.height);
-        return compressToRange(smaller, minBytes, maxBytes, dimAttempt + 1);
+    // Pass 2: too big even at base quality, so shrink dimensions at fixed quality
+    let lo = loScale, hi = hiScale, best = null;
+    for (let i = 0; i < 7; i++) {
+        const mid = (lo + hi) / 2;
+        const b   = await encode(src, mid, QUALITY);
+        if (b && b.size <= MAX_BYTES) { best = b; lo = mid; } else { hi = mid; }
     }
-
-    return best || await canvasToBlob(canvas, QUALITY_FLOOR);
+    if (!best) best = await encode(src, loScale, LOW_QUALITY);   // very rare
+    return best;
 }
 
-async function compressFileToTarget(file) {
-    const { img, url } = await loadImageFromFile(file);
-    const canvas = drawToCanvas(img, MAX_DIMENSION);
-    const blob   = await compressToRange(canvas, TARGET_MIN_BYTES, TARGET_MAX_BYTES);
-    URL.revokeObjectURL(url);
-    return blob;
-}
-
-function renameToJpg(originalName) {
-    const base = (originalName || 'photo').replace(/\.[^/.]+$/, '');
-    return `${base}_compressed.jpg`;
+function setPhotoInfo(text) {
+    const el = document.getElementById('photo_info');
+    if (el) el.textContent = text;
 }
 
 async function handleIncomingFile(file, zoneId, previewId, inputId) {
@@ -874,14 +868,21 @@ async function handleIncomingFile(file, zoneId, previewId, inputId) {
     const zone = document.getElementById(zoneId);
     zone.classList.add('dz-compressing');
     try {
-        const compressedBlob = await compressFileToTarget(file);
-        const newFile = new File([compressedBlob], renameToJpg(file.name), { type: 'image/jpeg' });
-
+        let finalFile;
+        if (file.size <= MAX_BYTES) {
+            finalFile = file;                       // already small: keep original bytes untouched
+        } else {
+            const img  = await loadImageFromFile(file);
+            const blob = await compressToLimit(img);
+            const base = (file.name || 'photo').replace(/\.[^/.]+$/, '');
+            finalFile  = new File([blob], `${base}_c.${OUT_EXT}`, { type: blob.type || OUT_TYPE });
+        }
         const dt = new DataTransfer();
-        dt.items.add(newFile);
+        dt.items.add(finalFile);
         document.getElementById(inputId).files = dt.files;
-        document.getElementById(previewId).src = URL.createObjectURL(newFile);
+        document.getElementById(previewId).src = URL.createObjectURL(finalFile);
         zone.classList.add('has-file');
+        setPhotoInfo(`${(file.size/1024).toFixed(0)} KB → ${(finalFile.size/1024).toFixed(0)} KB`);
     } catch (e) {
         alert('Could not process the photo: ' + e.message);
     } finally {
@@ -889,6 +890,7 @@ async function handleIncomingFile(file, zoneId, previewId, inputId) {
     }
 }
 
+// ── Drag & Drop handlers ───────────────────────────────────────────────────
 function dzFromInput(input, zoneId, previewId) {
     if (input.files && input.files[0]) handleIncomingFile(input.files[0], zoneId, previewId, input.id);
 }
@@ -914,6 +916,7 @@ function dzClear(e, zoneId, inputId, previewId) {
     document.getElementById(inputId).value = '';
     document.getElementById(previewId).src  = '';
     document.getElementById(zoneId).classList.remove('has-file');
+    setPhotoInfo('');
 }
 
 // ── Webcam Capture ─────────────────────────────────────────────────────────
@@ -961,8 +964,8 @@ function closeCamera() {
 }
 
 async function captureFromCamera() {
-    const video  = document.getElementById('camVideo');
-    const btn    = document.getElementById('camCaptureBtn');
+    const video = document.getElementById('camVideo');
+    const btn   = document.getElementById('camCaptureBtn');
 
     if (!video.videoWidth) {
         alert('Camera is still starting up — please wait a moment and try again.');
@@ -976,27 +979,19 @@ async function captureFromCamera() {
 
     const origLabel = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Compressing...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Optimizing...';
 
     try {
-        // Resize (if needed) then run the same quality-search pipeline used for file uploads
-        const scale = Math.min(1, MAX_DIMENSION / Math.max(rawCanvas.width, rawCanvas.height));
-        const resized = document.createElement('canvas');
-        resized.width  = Math.round(rawCanvas.width  * scale);
-        resized.height = Math.round(rawCanvas.height * scale);
-        const rctx = resized.getContext('2d');
-        rctx.imageSmoothingEnabled = true;
-        rctx.imageSmoothingQuality = 'high';
-        rctx.drawImage(rawCanvas, 0, 0, resized.width, resized.height);
-
-        const blob = await compressToRange(resized, TARGET_MIN_BYTES, TARGET_MAX_BYTES);
-        const file = new File([blob], `webcam_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        // Same pipeline as file uploads: fixed quality, shrink dimensions only if needed
+        const blob = await compressToLimit(rawCanvas);
+        const file = new File([blob], `webcam_${Date.now()}.${OUT_EXT}`, { type: blob.type || OUT_TYPE });
 
         const dt = new DataTransfer();
         dt.items.add(file);
         document.getElementById('photo').files = dt.files;
         document.getElementById('photo_prev').src = URL.createObjectURL(file);
         document.getElementById('dz_photo').classList.add('has-file');
+        setPhotoInfo(`${(file.size/1024).toFixed(0)} KB`);
 
         closeCamera();
     } catch (e) {
