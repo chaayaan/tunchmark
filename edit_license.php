@@ -16,9 +16,10 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $stmt = $pdo->prepare(
-            "UPDATE licenses SET branch_name=?, branch_app_link=?, license_key=?, expire_date=?, activation_date=?, last_renew=?, status=? WHERE id=?"
+            "UPDATE licenses SET branch_name=?, branch_app_link=?, license_key=?, expire_date=?, activation_date=?, last_renew=?, status=?, license_type=? WHERE id=?"
         );
         $activationDate = $_POST['activation_date'] ?: null;
+        $licType = (($_POST['license_type'] ?? '') === 'personal') ? 'personal' : 'industrial';
         $stmt->execute([
             $_POST['branch_name'],
             $_POST['branch_app_link'],
@@ -27,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $activationDate,
             $activationDate,  // keep last_renew in sync when edited manually
             $_POST['status'],
+            $licType,
             $license_id
         ]);
         $_SESSION['toast_message'] = 'License updated successfully';
@@ -181,6 +183,13 @@ include 'navbar.php';
                             <div>
                                 <label class="lbl">Activation Date</label>
                                 <input type="date" name="activation_date" class="fc" value="<?= htmlspecialchars($license['activation_date'] ?? '') ?>">
+                            </div>
+                            <div>
+                                <label class="lbl">Type <span class="req">*</span></label>
+                                <select name="license_type" class="fc" required>
+                                    <option value="industrial" <?= ($license['license_type'] ?? 'industrial')==='industrial' ?'selected':'' ?>>Industrial</option>
+                                    <option value="personal"   <?= ($license['license_type'] ?? '')==='personal'   ?'selected':'' ?>>Personal</option>
+                                </select>
                             </div>
                             <div>
                                 <label class="lbl">Status <span class="req">*</span></label>

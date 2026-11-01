@@ -19,26 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
         /* ---- ADD (super-admin only) ---- */
         if ($_POST['action'] === 'add' && $isSuperAdmin) {
             $activationDate = $_POST['activation_date'] ?: null;
+            $licType = (($_POST['license_type'] ?? '') === 'personal') ? 'personal' : 'industrial';
             $stmt = $pdo->prepare(
-                "INSERT INTO licenses (branch_name, branch_app_link, license_key, expire_date, activation_date, last_renew, status)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)"
-            );
-            $stmt->execute([
-                $_POST['branch_name'],
-                $_POST['branch_app_link'],
-                $_POST['license_key'],
-                $_POST['expire_date'],
-                $activationDate,
-                $activationDate,
-                $_POST['status']
-            ]);
-            echo json_encode(['success' => true, 'message' => 'License added successfully']);
-
-        /* ---- UPDATE (super-admin only) ---- */
-        } elseif ($_POST['action'] === 'update' && $isSuperAdmin) {
-            $activationDate = $_POST['activation_date'] ?: null;
-            $stmt = $pdo->prepare(
-                "UPDATE licenses SET branch_name=?, branch_app_link=?, license_key=?, expire_date=?, activation_date=?, last_renew=?, status=? WHERE id=?"
+                "INSERT INTO licenses (branch_name, branch_app_link, license_key, expire_date, activation_date, last_renew, status, license_type)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             );
             $stmt->execute([
                 $_POST['branch_name'],
@@ -48,6 +32,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax'])) {
                 $activationDate,
                 $activationDate,
                 $_POST['status'],
+                $licType
+            ]);
+            echo json_encode(['success' => true, 'message' => 'License added successfully']);
+
+        /* ---- UPDATE (super-admin only) ---- */
+        } elseif ($_POST['action'] === 'update' && $isSuperAdmin) {
+            $activationDate = $_POST['activation_date'] ?: null;
+            $licType = (($_POST['license_type'] ?? '') === 'personal') ? 'personal' : 'industrial';
+            $stmt = $pdo->prepare(
+                "UPDATE licenses SET branch_name=?, branch_app_link=?, license_key=?, expire_date=?, activation_date=?, last_renew=?, status=?, license_type=? WHERE id=?"
+            );
+            $stmt->execute([
+                $_POST['branch_name'],
+                $_POST['branch_app_link'],
+                $_POST['license_key'],
+                $_POST['expire_date'],
+                $activationDate,
+                $activationDate,
+                $_POST['status'],
+                $licType,
                 $_POST['id']
             ]);
             echo json_encode(['success' => true, 'message' => 'License updated successfully']);
@@ -170,6 +174,12 @@ include 'navbar.php';
         .fc:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(37,99,235,.1); }
         select.fc { appearance:none; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 10px center; }
         .form-footer { display:flex; justify-content:flex-end; gap:8px; padding-top:4px; }
+        .tabs { display:flex; gap:4px; padding:10px 18px 0; border-bottom:1px solid var(--border); background:var(--surface); }
+        .tab-btn { display:inline-flex; align-items:center; gap:7px; padding:8px 16px; border:none; background:none; font-family:inherit; font-size:.8125rem; font-weight:600; color:var(--t3); cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; transition:all .15s; }
+        .tab-btn:hover { color:var(--t1); }
+        .tab-btn.active { color:var(--violet); border-bottom-color:var(--violet); }
+        .tab-count { font-family:'DM Mono',monospace; font-size:.7rem; background:var(--bsoft); color:var(--t3); padding:1px 7px; border-radius:20px; }
+        .tab-btn.active .tab-count { background:var(--violet-bg); color:var(--violet); }
         .dt-wrap { overflow-x:auto; }
         table.dt { width:100%; border-collapse:collapse; font-size:.8375rem; }
         table.dt thead th { padding:8px 12px; font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--t4); background:var(--s2); border-bottom:1px solid var(--border); white-space:nowrap; }
@@ -275,6 +285,13 @@ include 'navbar.php';
                             <input type="date" name="activation_date" class="fc">
                         </div>
                         <div>
+                            <label class="lbl">Type <span class="req">*</span></label>
+                            <select name="license_type" id="addTypeSelect" class="fc" required>
+                                <option value="industrial">Industrial</option>
+                                <option value="personal">Personal</option>
+                            </select>
+                        </div>
+                        <div>
                             <label class="lbl">Status <span class="req">*</span></label>
                             <select name="status" class="fc" required>
                                 <option value="active">Active</option>
@@ -299,6 +316,14 @@ include 'navbar.php';
                 <span class="sec-ico i-violet"><i class="fas fa-table-list"></i></span>
                 <span class="sec-title">All Licenses</span>
                 <span id="licCount" style="margin-left:auto;font-size:.75rem;color:var(--t4);font-family:'DM Mono',monospace;"></span>
+            </div>
+            <div class="tabs" id="typeTabs">
+                <button type="button" class="tab-btn active" data-type="industrial" onclick="switchTab('industrial')">
+                    <i class="fas fa-industry"></i> Industrial <span class="tab-count" id="cntIndustrial">0</span>
+                </button>
+                <button type="button" class="tab-btn" data-type="personal" onclick="switchTab('personal')">
+                    <i class="fas fa-user"></i> Personal <span class="tab-count" id="cntPersonal">0</span>
+                </button>
             </div>
             <div class="dt-wrap">
                 <table class="dt">
@@ -366,22 +391,55 @@ include 'navbar.php';
 <script>
 const IS_SUPER_ADMIN = <?= $isSuperAdmin ? 'true' : 'false' ?>;
 let pendingRenewId = null;
+let allLicenses = [];
+let currentTab = 'industrial';   // default tab
 
-document.addEventListener('DOMContentLoaded', loadLicenses);
+try {
+    const saved = sessionStorage.getItem('licTab');
+    if (saved === 'personal' || saved === 'industrial') currentTab = saved;
+} catch (e) {}
+
+document.addEventListener('DOMContentLoaded', () => {
+    syncTabUI();
+    loadLicenses();
+});
+
+/* ── Tabs ────────────────────────────────────────────────── */
+function switchTab(type) {
+    currentTab = type;
+    try { sessionStorage.setItem('licTab', type); } catch (e) {}
+    syncTabUI();
+    displayLicenses(allLicenses);
+}
+
+function syncTabUI() {
+    document.querySelectorAll('#typeTabs .tab-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.type === currentTab));
+    const sel = document.getElementById('addTypeSelect');
+    if (sel) sel.value = currentTab;
+}
 
 /* ── Fetch & render ──────────────────────────────────────── */
 function loadLicenses() {
     post({ action: 'fetch' }).then(data => {
-        if (data.success) displayLicenses(data.licenses);
+        if (data.success) {
+            allLicenses = data.licenses;
+            displayLicenses(allLicenses);
+        }
     });
 }
 
-function displayLicenses(licenses) {
+function displayLicenses(all) {
     const tbody = document.getElementById('licensesTable');
     const count = document.getElementById('licCount');
 
+    const typeOf = l => (l.license_type === 'personal' ? 'personal' : 'industrial');
+    document.getElementById('cntIndustrial').textContent = all.filter(l => typeOf(l) === 'industrial').length;
+    document.getElementById('cntPersonal').textContent   = all.filter(l => typeOf(l) === 'personal').length;
+    const licenses = all.filter(l => typeOf(l) === currentTab);
+
     if (!licenses.length) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--t4);">No licenses found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--t4);">No ' + currentTab + ' licenses found</td></tr>';
         count.textContent = '';
         return;
     }
@@ -455,7 +513,7 @@ if (addFormEl) {
         body.append('action', 'add');
         post(body).then(data => {
             showToast(data.message, data.success ? 'success' : 'danger');
-            if (data.success) { this.reset(); loadLicenses(); }
+            if (data.success) { this.reset(); syncTabUI(); loadLicenses(); }
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-circle-plus" style="font-size:.75rem;"></i> Add License';
         });
