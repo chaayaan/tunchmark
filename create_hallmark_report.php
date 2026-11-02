@@ -60,7 +60,7 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
 
     // ── Validate image ─────────────────────────────────────────────────────
     $allowed_types = ['image/jpeg','image/jpg','image/png','image/webp'];
-    $max_size      = 90 * 1024; // 90 KB — client compresses to max 80 KB, this is a small safety buffer
+    $max_size      = 300 * 1024; // 300 KB — original image is stored as-is, no compression
     $photo_info    = null;
 
     if (isset($_FILES['photo']) && $_FILES['photo']['error'] !== UPLOAD_ERR_NO_FILE) {
@@ -68,7 +68,7 @@ if (isset($_POST['submit_report']) && !isset($_GET['report_id'])) {
         if ($file['error'] !== UPLOAD_ERR_OK) {
             $upload_error = "Photo upload error (code {$file['error']}).";
         } elseif ($file['size'] > $max_size) {
-            $upload_error = "Photo file is too large. Please re-select or re-capture the photo so it can be compressed again.";
+            $upload_error = "Photo file is too large. Maximum allowed size is 300 KB.";
         } else {
             $finfo = new finfo(FILEINFO_MIME_TYPE);
             $mime  = $finfo->file($file['tmp_name']);
@@ -523,7 +523,7 @@ if (isset($_GET['report_id'])) {
                     <?php endif; ?>
                     <div class="dz-wrap" style="max-width:320px;">
                         <label class="lbl">Sample Photo
-                            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · max 80 KB, detail preserved</span>
+                            <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--t4);">Optional · max 300 KB</span>
                         </label>
                         <div class="drop-zone" id="dz_photo"
                              onclick="document.getElementById('photo').click()"
@@ -534,11 +534,11 @@ if (isset($_GET['report_id'])) {
                             <div class="dz-placeholder">
                                 <i class="fas fa-cloud-arrow-up"></i>
                                 <span>Drag & drop or click</span>
-                                <small>JPG · PNG · WEBP · any size, auto-optimized</small>
+                                <small>JPG · PNG · WEBP · max 300 KB</small>
                             </div>
                             <div class="dz-compressing-overlay">
                                 <i class="fas fa-spinner fa-spin"></i>
-                                <span>Optimizing...</span>
+                                <span>Loading...</span>
                             </div>
                             <img id="photo_prev" class="dz-preview" alt="Photo preview">
                             <button type="button" class="dz-clear"
@@ -774,120 +774,35 @@ function selectBillItem(i) {
     event.currentTarget.classList.add('selected');
 }
 
-// ── Photo compression: max 80 KB, detail-first ─────────────────────────────
-// Strategy:
-//   1. File already <= 80 KB  -> keep the original bytes untouched.
-//   2. Otherwise keep quality FIXED and high, and reduce pixel dimensions only
-//      (binary search). Always re-encodes from the ORIGINAL image, never from an
-//      already-shrunk copy, so there is no cumulative blur.
-//   3. WebP when the browser can encode it (smaller at same quality), else JPEG.
+// ── Photo validation: original image is kept as-is (no compression) ────────
 const ALLOWED_TYPES = ['image/jpeg','image/jpg','image/png','image/webp'];
-const MAX_BYTES     = 80 * 1024;   // hard limit (PHP allows 90 KB as safety buffer)
-const MAX_DIMENSION = 1600;        // never start larger than this
-const MIN_DIMENSION = 400;         // never shrink below this
-const QUALITY       = 0.82;        // fixed — only dimensions change
-const LOW_QUALITY   = 0.70;        // last-resort fallback
-
-const _probe = document.createElement('canvas'); _probe.width = _probe.height = 1;
-const OUT_TYPE = _probe.toDataURL('image/webp').startsWith('data:image/webp') ? 'image/webp' : 'image/jpeg';
-const OUT_EXT  = OUT_TYPE === 'image/webp' ? 'webp' : 'jpg';
-
-function loadImageFromFile(file) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const url = URL.createObjectURL(file);
-        img.onload  = () => { URL.revokeObjectURL(url); resolve(img); };
-        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not read image file.')); };
-        img.src = url;
-    });
-}
-
-function srcSize(src) {
-    return {
-        w: src.naturalWidth  || src.videoWidth  || src.width,
-        h: src.naturalHeight || src.videoHeight || src.height
-    };
-}
-
-// Encodes from the original source (image or canvas) at the given scale/quality
-function encode(src, scale, quality) {
-    const { w, h } = srcSize(src);
-    const c = document.createElement('canvas');
-    c.width  = Math.max(1, Math.round(w * scale));
-    c.height = Math.max(1, Math.round(h * scale));
-    const ctx = c.getContext('2d');
-    ctx.fillStyle = '#fff';                 // transparent PNGs get white, not black
-    ctx.fillRect(0, 0, c.width, c.height);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(src, 0, 0, c.width, c.height);
-    return new Promise(res => c.toBlob(res, OUT_TYPE, quality));
-}
-
-const QUALITY_MAX = 0.97;   // highest quality we will try when budget allows
-
-async function compressToLimit(src) {
-    const { w, h } = srcSize(src);
-    const longest  = Math.max(w, h);
-    const hiScale  = Math.min(1, MAX_DIMENSION / longest);
-    const loScale  = Math.min(hiScale, MIN_DIMENSION / longest);
-
-    // Pass 1: full size. If it fits at the base quality, push quality up as far as the budget allows
-    const base = await encode(src, hiScale, QUALITY);
-    if (base && base.size <= MAX_BYTES) {
-        let best = base, lo = QUALITY, hi = QUALITY_MAX;
-        for (let i = 0; i < 5; i++) {
-            const mid = (lo + hi) / 2;
-            const b   = await encode(src, hiScale, mid);
-            if (b && b.size <= MAX_BYTES) { best = b; lo = mid; } else { hi = mid; }
-        }
-        return best;
-    }
-
-    // Pass 2: too big even at base quality, so shrink dimensions at fixed quality
-    let lo = loScale, hi = hiScale, best = null;
-    for (let i = 0; i < 7; i++) {
-        const mid = (lo + hi) / 2;
-        const b   = await encode(src, mid, QUALITY);
-        if (b && b.size <= MAX_BYTES) { best = b; lo = mid; } else { hi = mid; }
-    }
-    if (!best) best = await encode(src, loScale, LOW_QUALITY);   // very rare
-    return best;
-}
+const MAX_BYTES     = 300 * 1024;   // 300 KB hard limit (same limit enforced on the server)
 
 function setPhotoInfo(text) {
     const el = document.getElementById('photo_info');
     if (el) el.textContent = text;
 }
 
-async function handleIncomingFile(file, zoneId, previewId, inputId) {
+function handleIncomingFile(file, zoneId, previewId, inputId) {
     if (!ALLOWED_TYPES.includes(file.type)) {
         alert('Only JPG, PNG, or WEBP images are allowed.');
+        document.getElementById(inputId).value = '';
         return;
     }
-    const zone = document.getElementById(zoneId);
-    zone.classList.add('dz-compressing');
-    try {
-        let finalFile;
-        if (file.size <= MAX_BYTES) {
-            finalFile = file;                       // already small: keep original bytes untouched
-        } else {
-            const img  = await loadImageFromFile(file);
-            const blob = await compressToLimit(img);
-            const base = (file.name || 'photo').replace(/\.[^/.]+$/, '');
-            finalFile  = new File([blob], `${base}_c.${OUT_EXT}`, { type: blob.type || OUT_TYPE });
-        }
-        const dt = new DataTransfer();
-        dt.items.add(finalFile);
-        document.getElementById(inputId).files = dt.files;
-        document.getElementById(previewId).src = URL.createObjectURL(finalFile);
-        zone.classList.add('has-file');
-        setPhotoInfo(`${(file.size/1024).toFixed(0)} KB → ${(finalFile.size/1024).toFixed(0)} KB`);
-    } catch (e) {
-        alert('Could not process the photo: ' + e.message);
-    } finally {
-        zone.classList.remove('dz-compressing');
+    if (file.size > MAX_BYTES) {
+        alert('Photo is too large (' + (file.size/1024).toFixed(0) + ' KB). Maximum allowed size is 300 KB.');
+        document.getElementById(inputId).value = '';
+        document.getElementById(previewId).src = '';
+        document.getElementById(zoneId).classList.remove('has-file');
+        setPhotoInfo('');
+        return;
     }
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    document.getElementById(inputId).files = dt.files;
+    document.getElementById(previewId).src = URL.createObjectURL(file);
+    document.getElementById(zoneId).classList.add('has-file');
+    setPhotoInfo(`${(file.size/1024).toFixed(0)} KB`);
 }
 
 // ── Drag & Drop handlers ───────────────────────────────────────────────────
@@ -979,27 +894,26 @@ async function captureFromCamera() {
 
     const origLabel = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Optimizing...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Capturing...';
 
-    try {
-        // Same pipeline as file uploads: fixed quality, shrink dimensions only if needed
-        const blob = await compressToLimit(rawCanvas);
-        const file = new File([blob], `webcam_${Date.now()}.${OUT_EXT}`, { type: blob.type || OUT_TYPE });
-
+    // Encode the frame once at high quality (no resizing / no iterative compression)
+    rawCanvas.toBlob(blob => {
+        btn.disabled = false;
+        btn.innerHTML = origLabel;
+        if (!blob) { alert('Could not capture the photo. Please try again.'); return; }
+        if (blob.size > MAX_BYTES) {
+            alert('Captured photo is ' + (blob.size/1024).toFixed(0) + ' KB, which exceeds the 300 KB limit. Please try again.');
+            return;
+        }
+        const file = new File([blob], `webcam_${Date.now()}.jpg`, { type: 'image/jpeg' });
         const dt = new DataTransfer();
         dt.items.add(file);
         document.getElementById('photo').files = dt.files;
         document.getElementById('photo_prev').src = URL.createObjectURL(file);
         document.getElementById('dz_photo').classList.add('has-file');
         setPhotoInfo(`${(file.size/1024).toFixed(0)} KB`);
-
         closeCamera();
-    } catch (e) {
-        alert('Could not process the captured photo: ' + e.message);
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = origLabel;
-    }
+    }, 'image/jpeg', 0.92);
 }
 
 // Close modal on backdrop click, and stop camera if user navigates away
