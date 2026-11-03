@@ -263,8 +263,35 @@ if ($is_blocked) {
             </div>
         </div>
 
+        <?php if (function_exists('can_access_engineering') && can_access_engineering()):
+            $engPages = ['eng_dashboard.php','eng_projects.php','eng_tasks.php']; ?>
+        <!-- Engineering (admin + engineers only) -->
+        <div class="nb-group">
+            <div class="nb-group-toggle <?= in_array(basename($_SERVER['PHP_SELF']), $engPages) ? 'nb-active' : '' ?>"
+                 data-target="nbEngineering">
+                <i class="fas fa-helmet-safety nb-gi"></i>
+                <span>Engineering</span>
+                <i class="fas fa-chevron-down nb-chevron"></i>
+            </div>
+            <div class="nb-submenu <?= in_array(basename($_SERVER['PHP_SELF']), $engPages) ? 'nb-open' : '' ?>"
+                 id="nbEngineering">
+                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'eng_dashboard.php' ? 'nb-active' : '' ?>"
+                   href="eng_dashboard.php">
+                    <i class="fas fa-gauge"></i><span>Overview</span>
+                </a>
+                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'eng_projects.php' ? 'nb-active' : '' ?>"
+                   href="eng_projects.php">
+                    <i class="fas fa-diagram-project"></i><span>Projects</span>
+                </a>
+                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'eng_tasks.php' ? 'nb-active' : '' ?>"
+                   href="eng_tasks.php">
+                    <i class="fas fa-list-check"></i><span>Tasks</span>
+                </a>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <?php if (isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'employee'])): ?>
-        <!-- Manage -->
         <!-- Manage -->
         <div class="nb-group">
             <div class="nb-group-toggle <?= in_array(basename($_SERVER['PHP_SELF']), ['users.php','account.php','manage_licenses.php','buyers.php','suppliers.php']) ? 'nb-active' : '' ?>"
@@ -319,7 +346,8 @@ if ($is_blocked) {
             <div class="nb-avatar"><i class="fas fa-user"></i></div>
             <div class="nb-user-info">
                 <div class="nb-user-name">
-                    <?= isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) : 'Guest' ?>
+                    <?= !empty($_SESSION['name']) ? htmlspecialchars($_SESSION['name'])
+                        : (isset($_SESSION['username']) ? htmlspecialchars($_SESSION['username']) : 'Guest') ?>
                 </div>
                 <div class="nb-user-branch"><?= htmlspecialchars($branch_name) ?></div>
             </div>
