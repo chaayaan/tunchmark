@@ -5,9 +5,9 @@ $branch_name = 'rajaiswari';
 
 // ========== LICENSE DB CONNECTION ==========
 $db_host = "localhost";
-$db_user = "root";
-$db_pass = "";
-$db_name = "license_manager";
+$db_user = "joscyfrh_chayan";
+$db_pass = "@Chayandeb990";
+$db_name = "joscyfrh_license_manager";
 
 $license_conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
 
@@ -256,15 +256,17 @@ if ($is_blocked) {
                    href="stock_out.php">
                     <i class="fas fa-upload"></i><span>Stock Out</span>
                 </a>
-                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'products.php' ? 'nb-active' : '' ?>"
-                   href="products.php">
-                    <i class="fas fa-box"></i><span>Products</span>
-                </a>
+                <!--<a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'products.php' ? 'nb-active' : '' ?>"-->
+                <!--   href="products.php">-->
+                <!--    <i class="fas fa-box"></i><span>Products</span>-->
+                <!--</a>-->
             </div>
         </div>
 
         <?php if (function_exists('can_access_engineering') && can_access_engineering()):
-            $engPages = ['eng_dashboard.php','eng_projects.php','eng_tasks.php']; ?>
+            $engPages = [
+             'machines_report_list.php','machines_report_form.php',
+             'machines_report_action_list.php','machines_report_pdf.php']; ?>
         <!-- Engineering (admin + engineers only) -->
         <div class="nb-group">
             <div class="nb-group-toggle <?= in_array(basename($_SERVER['PHP_SELF']), $engPages) ? 'nb-active' : '' ?>"
@@ -275,17 +277,13 @@ if ($is_blocked) {
             </div>
             <div class="nb-submenu <?= in_array(basename($_SERVER['PHP_SELF']), $engPages) ? 'nb-open' : '' ?>"
                  id="nbEngineering">
-                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'eng_dashboard.php' ? 'nb-active' : '' ?>"
-                   href="eng_dashboard.php">
-                    <i class="fas fa-gauge"></i><span>Overview</span>
-                </a>
-                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'eng_projects.php' ? 'nb-active' : '' ?>"
-                   href="eng_projects.php">
-                    <i class="fas fa-diagram-project"></i><span>Projects</span>
-                </a>
-                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'eng_tasks.php' ? 'nb-active' : '' ?>"
-                   href="eng_tasks.php">
-                    <i class="fas fa-list-check"></i><span>Tasks</span>
+                <a class="nb-link <?= in_array(basename($_SERVER['PHP_SELF']), ['machines_report_list.php','machines_report_form.php','machines_report_pdf.php']) ? 'nb-active' : '' ?>"
+                    href="machines_report_list.php">
+                        <i class="fas fa-screwdriver-wrench"></i><span>Machine Reports</span>
+                    </a>
+                    <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'machines_report_action_list.php' ? 'nb-active' : '' ?>"
+                    href="machines_report_action_list.php">
+                        <i class="fas fa-list-check"></i><span>Report Actions</span>
                 </a>
             </div>
         </div>
@@ -307,14 +305,14 @@ if ($is_blocked) {
                    href="users.php">
                     <i class="fas fa-users-gear"></i><span>Manage Users</span>
                 </a>
-                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'buyers.php' ? 'nb-active' : '' ?>"
-                   href="buyers.php">
-                    <i class="fas fa-cart-shopping"></i><span>Buyers</span>
-                </a>
-                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'suppliers.php' ? 'nb-active' : '' ?>"
-                   href="suppliers.php">
-                    <i class="fas fa-truck"></i><span>Suppliers</span>
-                </a>
+                <!--<a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'buyers.php' ? 'nb-active' : '' ?>"-->
+                <!--   href="buyers.php">-->
+                <!--    <i class="fas fa-cart-shopping"></i><span>Buyers</span>-->
+                <!--</a>-->
+                <!--<a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'suppliers.php' ? 'nb-active' : '' ?>"-->
+                <!--   href="suppliers.php">-->
+                <!--    <i class="fas fa-truck"></i><span>Suppliers</span>-->
+                <!--</a>-->
                 <?php endif; ?>
                 <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'account.php' ? 'nb-active' : '' ?>"
                    href="account.php">
