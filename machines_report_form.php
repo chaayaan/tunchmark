@@ -177,7 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $conn->commit();
-            header("Location: machines_report_list.php?msg=" . ($isEdit ? 'updated' : 'created')); exit;
+            header("Location: machines_report_pdf.php?id=" . (int)$rid . "&saved=" . ($isEdit ? 'updated' : 'created')); exit;
         } catch (Throwable $e) {
             $conn->rollback();
             error_log('machines_report save failed: ' . $e->getMessage());
@@ -283,7 +283,7 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
     <div class="tb-ico"><i class="fas fa-<?= $isEdit ? 'pen-to-square' : 'file-circle-plus' ?>"></i></div>
     <div><div class="tb-title"><?= h($pageTitle) ?></div><div class="tb-sub">Installation / Service report</div></div>
     <div class="tb-right">
-      <?php if ($isEdit): ?><a href="machines_report_pdf.php?id=<?= $reportId ?>" target="_blank" rel="noopener" class="btn-soft"><i class="fas fa-file-pdf"></i><span class="d-none d-sm-inline"> PDF</span></a><?php endif; ?>
+      <?php if ($isEdit): ?><a href="machines_report_pdf.php?id=<?= $reportId ?>" class="btn-soft"><i class="fas fa-file-pdf"></i><span class="d-none d-sm-inline"> PDF</span></a><?php endif; ?>
       <a href="machines_report_list.php" class="btn-soft"><i class="fas fa-arrow-left"></i> Back</a>
     </div>
   </header>

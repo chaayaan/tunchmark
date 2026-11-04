@@ -193,7 +193,7 @@ $hasFilter = ($q !== '' || $type !== '' || $dateFrom !== '' || $dateTo !== '');
             <td class="td-act" style="text-align:right;white-space:nowrap;">
               <div class="d-flex gap-2 justify-content-end">
                 <a class="btn-act btn-edit" href="machines_report_form.php?id=<?= (int)$r['id'] ?>"><i class="fas fa-pen"></i> Edit</a>
-                <a class="btn-act btn-pdf" href="machines_report_pdf.php?id=<?= (int)$r['id'] ?>" target="_blank" rel="noopener"><i class="fas fa-file-pdf"></i> PDF</a>
+                <a class="btn-act btn-pdf" href="machines_report_pdf.php?id=<?= (int)$r['id'] ?>"><i class="fas fa-file-pdf"></i> PDF</a>
               </div>
             </td>
           </tr>

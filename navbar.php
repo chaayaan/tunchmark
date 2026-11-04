@@ -5,9 +5,9 @@ $branch_name = 'rajaiswari';
 
 // ========== LICENSE DB CONNECTION ==========
 $db_host = "localhost";
-$db_user = "joscyfrh_chayan";
-$db_pass = "@Chayandeb990";
-$db_name = "joscyfrh_license_manager";
+$db_user = "root";
+$db_pass = "";
+$db_name = "license_manager";
 
 $license_conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
 
