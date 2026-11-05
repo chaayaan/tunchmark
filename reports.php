@@ -711,6 +711,9 @@ function getPaginationUrl($page_num) {
         <i class="fas fa-file-lines" style="font-size:.6rem;"></i>
         p.<?= $page ?>/<?= max(1,$total_pages) ?> &nbsp;·&nbsp; <?= $total_records ?> orders
       </div>
+      <a href="export_report_pdf.php?<?= http_build_query($_GET) ?>" class="tb-btn tb-btn-ghost">
+        <i class="fas fa-file-pdf" style="font-size:.7rem;color:var(--red);"></i> Export PDF
+      </a>
       <a href="export_report_csv.php?<?= http_build_query($_GET) ?>" class="tb-btn tb-btn-green">
         <i class="fas fa-file-csv" style="font-size:.7rem;"></i> Export CSV
       </a>
