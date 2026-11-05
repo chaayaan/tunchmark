@@ -70,7 +70,7 @@ $flash = ($_GET['saved'] ?? '') === 'created' ? 'Report created successfully.' :
     /* A4 sheet with the company letterhead as background; 1 in top/bottom, 0.5 in sides */
     .paper{width:210mm;height:296.6mm;padding:1in 0.5in;background:#fffee6 url('machines_report_letterhead.png') 0 0/100% 100% no-repeat;box-shadow:0 2px 14px rgba(0,0,0,.2);transform-origin:top left;overflow:hidden;box-sizing:border-box;}
     .paper.nobg{background:#fff;}
-    #sheet{position:relative;width:184mm;font-family:Calibri,Carlito,'Segoe UI',Arial,sans-serif;font-size:11pt;line-height:1.25;color:#000;}
+    #sheet{position:relative;width:184mm;font-family:Arial,Helvetica,sans-serif;font-size:12pt;line-height:1.25;color:#000;}
     #sheet *{font-family:inherit;}
     .wm{position:absolute;left:50%;top:50%;width:62%;transform:translate(-50%,-50%);opacity:.07;z-index:0;pointer-events:none;}
     .frame{position:relative;z-index:1;border:.17em solid #000;overflow:hidden;background:transparent;}
@@ -186,7 +186,7 @@ $flash = ($_GET['saved'] ?? '') === 'created' ? 'Report created successfully.' :
 
   // Shrink the type slightly if a long report would otherwise spill past one page
   function fit() {
-    var fs = 11; sheet.style.fontSize = fs + 'pt';
+    var fs = 12; sheet.style.fontSize = fs + 'pt';
     while (sheet.offsetHeight > MAX_PX && fs > 6) { fs -= 0.25; sheet.style.fontSize = fs + 'pt'; }
   }
   // Scale the A4 preview down on narrow screens (preview only)
