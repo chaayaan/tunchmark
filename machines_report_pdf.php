@@ -87,6 +87,7 @@ $flash = ($_GET['saved'] ?? '') === 'created' ? 'Report created successfully.' :
     .r1{height:2.6em;}.r2{height:2.1em;}
     .box-obs{min-height:3.4em;}.box-act{min-height:6.6em;}.box-add{min-height:4.8em;}
     ol.acts{margin:.3em 0 0;padding-left:2.4em;}ol.acts li{margin:.18em 0;font-size:1.05em;}
+    ol.acts li.hw{border-bottom:.07em dotted #000;margin-right:1.5em;}
     table.sp td,table.sp th{height:2.1em;}
     table.sp th{height:3em;}
     .sig{display:flex;flex-direction:column;justify-content:space-between;min-height:11em;padding-bottom:1.6em;}
@@ -127,8 +128,10 @@ $flash = ($_GET['saved'] ?? '') === 'created' ? 'Report created successfully.' :
           <div class="frame">
             <table class="t"><colgroup><col style="width:100%"></colgroup>
               <tr><th class="title"><?= h($title) ?></th></tr></table>
+            <?php /* Report No / Date line (disabled — remove this comment wrapper to show it again)
             <table class="t"><colgroup><col style="width:52.1%"><col style="width:47.9%"></colgroup>
               <tr><td class="meta">Report No: <span class="v"><?= h($reportNo) ?></span></td><td class="meta" style="text-align:right!important">Date: <span class="v"><?= h($d($report['report_date'])) ?></span></td></tr></table>
+            */ ?>
 
             <table class="t thick"><colgroup><col style="width:52.1%"><col style="width:18.6%"><col style="width:29.3%"></colgroup>
               <tr class="rc"><td class="lb">Customer Name and Address</td><td class="lb">Contact Person</td><td class="v"><?= h($report['contact_person']) ?></td></tr>
@@ -150,7 +153,7 @@ $flash = ($_GET['saved'] ?? '') === 'created' ? 'Report created successfully.' :
               <tr><td><div class="lbu">Observations</div><div class="v box-obs"><?= h($report['observations']) ?></div></td></tr></table>
 
             <table class="t thick"><colgroup><col style="width:100%"></colgroup>
-              <tr><td><div class="lbu">Action Taken</div><div class="box-act"><?php if ($actions): ?><ol class="acts"><?php foreach ($actions as $a): ?><li><?= h($a) ?></li><?php endforeach; ?></ol><?php endif; ?></div></td></tr></table>
+              <tr><td><div class="lbu">Action Taken</div><div class="box-act"><?php if ($actions): ?><ol class="acts"><?php foreach ($actions as $a): ?><li<?= $a === '' ? ' class="hw"' : '' ?>><?= $a === '' ? '&nbsp;' : h($a) ?></li><?php endforeach; ?></ol><?php endif; ?></div></td></tr></table>
 
             <table class="t thick sp"><colgroup><col style="width:8%"><col style="width:18.6%"><col style="width:30.4%"><col style="width:11.4%"><col style="width:31.6%"></colgroup>
               <tr><td colspan="5" class="secthead" style="height:1.9em">SPARE PARTS REPLACED (IF ANY)</td></tr>

@@ -75,7 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $flash = $flashMap[$_GET['ok'] ?? ''] ?? '';
 
 $actions = $conn->query(
-    "SELECT l.*, (SELECT COUNT(*) FROM machines_report_action a WHERE a.action_list_id = l.id) AS used_count
+    "SELECT l.*, (SELECT COUNT(*) FROM machines_report_action a WHERE a.action_text = l.action_text AND a.is_other = 0) AS used_count
      FROM machines_report_action_list l ORDER BY l.is_active DESC, l.sort_order, l.id"
 )->fetch_all(MYSQLI_ASSOC);
 $activeCount = count(array_filter($actions, fn($a) => (int)$a['is_active'] === 1));

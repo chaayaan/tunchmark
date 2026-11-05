@@ -18,6 +18,7 @@ $errors   = [];
 
 // ---------- Load existing report ----------
 $report = null; $savedActions = []; $savedParts = [];
+$hasOther = false; $otherText = '';      // free-text "Other" action (stored as plain text with is_other = 1)
 if ($isEdit) {
     $stmt = $conn->prepare("SELECT * FROM machines_report WHERE id = ? LIMIT 1");
     $stmt->bind_param("i", $reportId);
@@ -26,11 +27,17 @@ if ($isEdit) {
     $stmt->close();
     if (!$report) { header("Location: machines_report_list.php?msg=notfound"); exit; }
 
-    // snapshot of actions already on this report: action_list_id => text
-    $stmt = $conn->prepare("SELECT action_list_id, action_text FROM machines_report_action WHERE report_id = ? AND action_list_id IS NOT NULL ORDER BY sort_order, id");
+    // actions saved on this report are plain text (no link to the master list)
+    $stmt = $conn->prepare("SELECT action_text FROM machines_report_action WHERE report_id = ? AND is_other = 0 ORDER BY sort_order, id");
     $stmt->bind_param("i", $reportId);
     $stmt->execute();
-    foreach ($stmt->get_result() as $a) $savedActions[(int)$a['action_list_id']] = $a['action_text'];
+    foreach ($stmt->get_result() as $a) $savedActions[] = $a['action_text'];
+    $stmt->close();
+
+    $stmt = $conn->prepare("SELECT action_text FROM machines_report_action WHERE report_id = ? AND is_other = 1 ORDER BY sort_order, id LIMIT 1");
+    $stmt->bind_param("i", $reportId);
+    $stmt->execute();
+    if ($o = $stmt->get_result()->fetch_assoc()) { $hasOther = true; $otherText = $o['action_text']; }
     $stmt->close();
 
     $stmt = $conn->prepare("SELECT part_code, part_description, quantity, billing_instructions FROM machines_report_spareparts WHERE report_id = ? ORDER BY sr_no, id");
@@ -46,7 +53,7 @@ $checkLen  = function (string $v, int $max, string $label) use (&$errors) { if (
 $post      = function (string $k): string { $v = $_POST[$k] ?? ''; return is_string($v) ? trim($v) : ''; };
 
 // ---------- Save ----------
-$selectedIds = array_keys($savedActions);
+$selectedTexts = $savedActions;
 $partsRows   = $savedParts;
 $f = $report ?: [
     'report_type' => '', 'report_date' => date('Y-m-d'), 'customer_name' => '', 'customer_address' => '', 'contact_person' => '',
@@ -108,23 +115,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (count($clean) > MR_MAX_PARTS) $errors[] = "A maximum of " . MR_MAX_PARTS . " spare part rows fits on the one-page PDF.";
 
-    // --- Actions ---
-    $selectedIds = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['actions'] ?? [])), fn($v) => $v > 0)));
+    // --- Actions (stored as plain text) ---
     $actionRows = [];
-    if ($selectedIds) {
-        $ph  = implode(',', array_fill(0, count($selectedIds), '?'));
-        $stmt = $conn->prepare("SELECT id, action_text, is_active FROM machines_report_action_list WHERE id IN ($ph) ORDER BY sort_order, id");
-        $stmt->bind_param(str_repeat('i', count($selectedIds)), ...$selectedIds);
-        $stmt->execute();
-        $master = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-        $stmt->close();
-        foreach ($master as $m) {
-            $mid = (int)$m['id'];
-            if (isset($savedActions[$mid]))        $actionRows[] = [$mid, $savedActions[$mid]];   // keep original wording
-            elseif ((int)$m['is_active'] === 1)    $actionRows[] = [$mid, $m['action_text']];     // newly ticked
-            // inactive + not previously saved -> ignored
-        }
+    foreach ((array)($_POST['actions'] ?? []) as $t) {
+        if (!is_string($t)) continue;
+        $t = trim($t);
+        if ($t === '' || in_array($t, $actionRows, true)) continue;
+        if (mb_strlen($t) > 255) { $errors[] = "An action is longer than 255 characters."; continue; }
+        $actionRows[] = $t;
     }
+    if (count($actionRows) > 30) $errors[] = "Too many actions selected (maximum 30).";
+    $selectedTexts = $actionRows;
+
+    // --- "Other" (hand-written) action: one extra row ---
+    $hasOther  = !empty($_POST['other_on']);
+    $otherText = $hasOther ? $post('other_text') : '';
+    if (mb_strlen($otherText) > 255) $errors[] = "The 'Other' action must be at most 255 characters.";
 
     // --- Persist inside one transaction ---
     if (!$errors) {
@@ -157,11 +163,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $rid = (int)$conn->insert_id; $stmt->close();
             }
 
-            if ($actionRows) {
-                $stmt = $conn->prepare("INSERT INTO machines_report_action (report_id, action_list_id, action_text, sort_order) VALUES (?,?,?,?)");
-                foreach ($actionRows as $i => [$aid, $atext]) { $so = $i + 1; $stmt->bind_param("iisi", $rid, $aid, $atext, $so); $stmt->execute(); }
-                $stmt->close();
+            $stmt = $conn->prepare("INSERT INTO machines_report_action (report_id, action_text, is_other, sort_order) VALUES (?, ?, ?, ?)");
+            $so = 0;
+            foreach ($actionRows as $atext) { $so++; $io = 0; $stmt->bind_param("isii", $rid, $atext, $io, $so); $stmt->execute(); }
+            if ($hasOther) {                       // free-text row; empty text = blank line for hand-writing on the PDF
+                $so++; $io = 1; $stmt->bind_param("isii", $rid, $otherText, $io, $so); $stmt->execute();
             }
+            $stmt->close();
             if ($clean) {
                 $stmt = $conn->prepare("INSERT INTO machines_report_spareparts (report_id, sr_no, part_code, part_description, quantity, billing_instructions) VALUES (?,?,?,?,?,?)");
                 foreach ($clean as $i => $p) {
@@ -186,11 +194,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// ---------- Checklist items (active + anything already saved on this report) ----------
-$items = [];
-$res = $conn->query("SELECT id, action_text FROM machines_report_action_list WHERE is_active = 1 ORDER BY sort_order, id");
-foreach ($res as $a) $items[(int)$a['id']] = ['text' => $savedActions[(int)$a['id']] ?? $a['action_text'], 'legacy' => false];
-foreach ($savedActions as $id => $text) if (!isset($items[$id])) $items[$id] = ['text' => $text, 'legacy' => true];
+// ---------- Checklist items: active master actions + anything already ticked that is no longer in the list ----------
+$items = []; $seen = [];
+$res = $conn->query("SELECT action_text FROM machines_report_action_list WHERE is_active = 1 ORDER BY sort_order, id");
+foreach ($res as $a) { $t = trim($a['action_text']); if (isset($seen[$t])) continue; $seen[$t] = 1; $items[] = ['text' => $t, 'legacy' => false]; }
+foreach ($selectedTexts as $t) { if (isset($seen[$t])) continue; $seen[$t] = 1; $items[] = ['text' => $t, 'legacy' => true]; }
 
 // spare parts: at least 3 rows
 while (count($partsRows) < 3) $partsRows[] = ['part_code' => '', 'part_description' => '', 'quantity' => '', 'billing_instructions' => ''];
@@ -252,6 +260,7 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
     .chk-item .form-check-input{margin-top:3px;flex-shrink:0;width:1.1em;height:1.1em;}
     .chk-item:has(input:checked){background:var(--green-bg);border-color:var(--green-b);}
     .chk-text{font-size:.875rem;color:var(--t2);}
+    .chk-other{cursor:default;}
     .legacy-tag{font-size:.65rem;font-weight:700;background:var(--amber-bg);color:#92400e;border:1px solid var(--amber-b);border-radius:20px;padding:0 7px;margin-left:5px;white-space:nowrap;}
     /* spare parts */
     .sp-row{display:grid;grid-template-columns:44px 1.1fr 2fr 90px 1.6fr 40px;gap:8px;align-items:center;margin-bottom:8px;}
@@ -347,19 +356,27 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
           <div class="sec-meta"><a href="machines_report_action_list.php" class="text-decoration-none">Manage list</a></div></div>
         <div class="sec-body">
           <?php if (!$items): ?>
-            <div class="text-muted">No active actions yet. <a href="machines_report_action_list.php">Add actions</a> to build the checklist.</div>
-          <?php else: ?>
+            <div class="text-muted mb-2">No active actions yet. <a href="machines_report_action_list.php">Add actions</a> to build the checklist.</div>
+          <?php endif; ?>
           <div class="row g-2">
-            <?php foreach ($items as $id => $it): ?>
+            <?php foreach ($items as $it): ?>
             <div class="col-12 col-md-6">
               <label class="chk-item">
-                <input class="form-check-input" type="checkbox" name="actions[]" value="<?= (int)$id ?>" <?= in_array($id, $selectedIds, true) ? 'checked' : '' ?>>
-                <span class="chk-text"><?= h($it['text']) ?><?php if ($it['legacy']): ?><span class="legacy-tag">no longer in list</span><?php endif; ?></span>
+                <input class="form-check-input" type="checkbox" name="actions[]" value="<?= h($it['text']) ?>" <?= in_array($it['text'], $selectedTexts, true) ? 'checked' : '' ?>>
+                <span class="chk-text"><?= h($it['text']) ?><?php if ($it['legacy']): ?><span class="legacy-tag">not in current list</span><?php endif; ?></span>
               </label>
             </div>
             <?php endforeach; ?>
+            <div class="col-12">
+              <div class="chk-item chk-other">
+                <input class="form-check-input" type="checkbox" name="other_on" id="otherOn" value="1" <?= $hasOther ? 'checked' : '' ?>>
+                <div class="flex-grow-1">
+                  <label class="chk-text fw-bold" for="otherOn" style="cursor:pointer">Other <span class="text-muted fw-normal">(type it here, or leave blank to hand-write on the printed report)</span></label>
+                  <input type="text" class="form-control mt-1" name="other_text" id="otherText" maxlength="255" placeholder="Other action…" value="<?= h($otherText) ?>" <?= $hasOther ? '' : 'disabled' ?>>
+                </div>
+              </div>
+            </div>
           </div>
-          <?php endif; ?>
         </div>
       </div>
 
@@ -429,6 +446,9 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
     row.remove(); renumber();
   });
   renumber();
+
+  var otherOn = document.getElementById('otherOn'), otherText = document.getElementById('otherText');
+  otherOn.addEventListener('change', function () { otherText.disabled = !this.checked; if (this.checked) otherText.focus(); });
 
   // client-side validation (server re-validates everything)
   document.getElementById('reportForm').addEventListener('submit', function (e) {
