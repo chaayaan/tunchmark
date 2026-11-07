@@ -173,6 +173,16 @@ ob_end_clean();
     .tb-btn-green { background:var(--green-bg); border-color:var(--green-b); color:var(--green); }
     .tb-btn-green:hover { background:#d1fae5; color:var(--green); }
     .tb-btn[disabled] { opacity:.5; pointer-events:none; }
+    .pn-toggle { display:inline-flex; align-items:center; gap:8px; height:32px; padding:0 12px; border-radius:var(--rs);
+                 background:var(--surface-2); border:1.5px solid var(--border); font-size:.82rem; font-weight:600;
+                 color:var(--t2); cursor:pointer; user-select:none; white-space:nowrap; }
+    .pn-toggle input { display:none; }
+    .pn-switch { position:relative; width:30px; height:17px; border-radius:20px; background:#cbd0d8; transition:background .15s; flex-shrink:0; }
+    .pn-switch::after { content:''; position:absolute; top:2px; left:2px; width:13px; height:13px; border-radius:50%;
+                        background:#fff; transition:left .15s; box-shadow:0 1px 2px rgba(0,0,0,.3); }
+    .pn-toggle input:checked + .pn-switch { background:var(--green); }
+    .pn-toggle input:checked + .pn-switch::after { left:15px; }
+    .pn-toggle.disabled { opacity:.5; pointer-events:none; }
 
     .main { flex:1; padding:20px 22px 30px; display:flex; flex-direction:column; gap:14px; }
     .sec { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--sh); overflow:hidden; }
@@ -208,6 +218,11 @@ ob_end_clean();
       <div class="tb-sub"><?= htmlspecialchars($filterText) ?></div>
     </div>
     <div class="tb-right">
+      <label class="pn-toggle disabled" id="pnLabel" title="Show page numbers in the PDF">
+        <input type="checkbox" id="pnToggle">
+        <span class="pn-switch"></span>
+        Page No
+      </label>
       <a href="#" id="btnDownload" class="tb-btn tb-btn-green" disabled>
         <i class="fas fa-download" style="font-size:.7rem;"></i> Download
       </a>
@@ -240,8 +255,9 @@ ob_end_clean();
 <script>
 (function () {
   var DATA  = <?= $json ?>;
-  var TITLE = 'RAJAISWARI GOLD TESTING CENTER';
+  var TITLE = 'Rajaiswari Gold Testing Centre';
   var BLACK = [0, 0, 0];
+  var SHOW_PAGE_NO = false;   // default: page numbers off
 
   function money(n) { return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function qty(n)   { return String(Number(Number(n || 0).toFixed(2))); }
@@ -372,7 +388,7 @@ ob_end_clean();
       doc.setFontSize(8);
       doc.setTextColor(60);
       doc.text('Generated on ' + DATA.generated, M, pageH - 6);
-      doc.text('Page ' + i + ' of ' + total, pageW - M, pageH - 6, { align: 'right' });
+      if (SHOW_PAGE_NO) doc.text('Page ' + i + ' of ' + total, pageW - M, pageH - 6, { align: 'right' });
     }
     return doc;
   }
@@ -392,6 +408,7 @@ ob_end_clean();
   function run() {
     try {
       if (!window.jspdf || !window.jspdf.jsPDF) throw new Error('jsPDF failed to load. Check your internet connection.');
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
       pdfDoc  = build();
       blobUrl = URL.createObjectURL(pdfDoc.output('blob'));
 
@@ -400,6 +417,7 @@ ob_end_clean();
       document.getElementById('pv').src = blobUrl;
       btnD.removeAttribute('disabled');
       btnP.removeAttribute('disabled');
+      document.getElementById('pnLabel').classList.remove('disabled');
 
     } catch (e) {
       fail(e.message);
@@ -420,6 +438,11 @@ ob_end_clean();
     } catch (err) {
       window.location.href = blobUrl;   // fallback: open the PDF in this tab and print from the viewer
     }
+  });
+
+  document.getElementById('pnToggle').addEventListener('change', function () {
+    SHOW_PAGE_NO = this.checked;
+    run();   // rebuild the preview with/without page numbers
   });
 
   window.addEventListener('load', run);
