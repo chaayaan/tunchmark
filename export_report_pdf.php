@@ -255,7 +255,7 @@ ob_end_clean();
 <script>
 (function () {
   var DATA  = <?= $json ?>;
-  var TITLE = 'Rajaiswari Gold Testing Centre';
+  var TITLE = 'Rajaiswari Gold Testing Center';
   var BLACK = [0, 0, 0];
   var SHOW_PAGE_NO = false;   // default: page numbers off
 
@@ -311,7 +311,7 @@ ob_end_clean();
 
       doc.autoTable({
         startY: 31,
-        margin: { top: 31, left: M, right: M, bottom: 16 },
+        margin: { top: 12, left: M, right: M, bottom: 16 },   // first page starts lower via startY (title block)
         head: [['Bill No', 'Date', 'Customer', 'Status', 'Items & Services', 'Total (Tk)']],
         body: body,
         foot: [[
@@ -333,13 +333,13 @@ ob_end_clean();
           5: { cellWidth: 26, halign: 'right', fontStyle: 'bold' }
         },
         rowPageBreak: 'avoid',
-        didDrawPage: drawHeader
+        didDrawPage: function (h) { if (h.pageNumber === 1) drawHeader(); }   // title on first page only
       });
 
       /* Summary by status */
       var sm = DATA.summary;
       var y = doc.lastAutoTable.finalY + 8;
-      if (y + 40 > pageH - 16) { doc.addPage(); drawHeader(); y = 36; }
+      if (y + 40 > pageH - 16) { doc.addPage(); y = 18; }
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(0);
@@ -365,7 +365,7 @@ ob_end_clean();
 
       /* Signatures */
       var sy = doc.lastAutoTable.finalY + 22;
-      if (sy > pageH - 20) { doc.addPage(); drawHeader(); sy = 60; }
+      if (sy > pageH - 20) { doc.addPage(); sy = 30; }
       doc.setDrawColor(0);
       doc.setLineWidth(0.3);
       doc.line(M, sy, M + 60, sy);
