@@ -267,7 +267,9 @@ if ($is_blocked) {
             $engPages = [
              'machines_report_list.php','machines_report_form.php',
              'machines_report_action_list.php','machines_report_pdf.php',
-             'machines_billing_list.php','machines_billing_form.php','machines_billing_pdf.php']; ?>
+             'machines_billing_list.php','machines_billing_form.php','machines_billing_pdf.php',
+             'conveyance_list.php','conveyance_form.php','conveyance_print.php'
+             ]; ?>
         <!-- Engineering (admin + engineers only) -->
         <div class="nb-group">
             <div class="nb-group-toggle <?= in_array(basename($_SERVER['PHP_SELF']), $engPages) ? 'nb-active' : '' ?>"
@@ -285,6 +287,10 @@ if ($is_blocked) {
                 <a class="nb-link <?= in_array(basename($_SERVER['PHP_SELF']), ['machines_billing_list.php','machines_billing_form.php','machines_billing_pdf.php']) ? 'nb-active' : '' ?>"
                     href="machines_billing_list.php">
                     <i class="fas fa-file-invoice-dollar"></i><span>Annual Billing</span>
+                </a>
+                <a class="nb-link <?= in_array(basename($_SERVER['PHP_SELF']), ['conveyance_list.php','conveyance_form.php','conveyance_print.php']) ? 'nb-active' : '' ?>"
+                   href="conveyance_list.php">
+                    <i class="fas fa-route"></i><span>Conveyance Bills</span>
                 </a>
                 <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'machines_report_action_list.php' ? 'nb-active' : '' ?>"
                     href="machines_report_action_list.php">
