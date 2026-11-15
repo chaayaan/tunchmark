@@ -264,37 +264,55 @@ if ($is_blocked) {
         </div>
 
         <?php if (function_exists('can_access_engineering') && can_access_engineering()):
-            $engPages = [
-             'machines_report_list.php','machines_report_form.php',
-             'machines_report_action_list.php','machines_report_pdf.php',
-             'machines_billing_list.php','machines_billing_form.php','machines_billing_pdf.php',
-             'conveyance_list.php','conveyance_form.php','conveyance_print.php'
-             ]; ?>
+            $nbPage = basename($_SERVER['PHP_SELF']);
+            // pages that belong to each menu item (list + form + pdf/print + history)
+            $engItems = [
+                'dashboard' => ['engineering_dashboard.php'],
+                'reports'   => ['machines_report_list.php','machines_report_form.php','machines_report_pdf.php'],
+                'billing'   => ['machines_billing_list.php','machines_billing_form.php','machines_billing_pdf.php'],
+                'convey'    => ['conveyance_list.php','conveyance_form.php','conveyance_print.php'],
+                'actions'   => ['machines_report_action_list.php'],
+                'labs'      => ['gold_labs_list.php','gold_lab_history.php'],
+                'machines'  => ['gold_lab_machines.php'],
+            ];
+            $engPages = array_merge(...array_values($engItems)); ?>
         <!-- Engineering (admin + engineers only) -->
         <div class="nb-group">
-            <div class="nb-group-toggle <?= in_array(basename($_SERVER['PHP_SELF']), $engPages) ? 'nb-active' : '' ?>"
+            <div class="nb-group-toggle <?= in_array($nbPage, $engPages) ? 'nb-active' : '' ?>"
                  data-target="nbEngineering">
                 <i class="fas fa-helmet-safety nb-gi"></i>
                 <span>Engineering</span>
                 <i class="fas fa-chevron-down nb-chevron"></i>
             </div>
-            <div class="nb-submenu <?= in_array(basename($_SERVER['PHP_SELF']), $engPages) ? 'nb-open' : '' ?>"
+            <div class="nb-submenu <?= in_array($nbPage, $engPages) ? 'nb-open' : '' ?>"
                  id="nbEngineering">
-                <a class="nb-link <?= in_array(basename($_SERVER['PHP_SELF']), ['machines_report_list.php','machines_report_form.php','machines_report_pdf.php']) ? 'nb-active' : '' ?>"
-                    href="machines_report_list.php">
-                        <i class="fas fa-screwdriver-wrench"></i><span>Machine Reports</span>
+                <a class="nb-link <?= in_array($nbPage, $engItems['dashboard']) ? 'nb-active' : '' ?>"
+                   href="engineering_dashboard.php">
+                    <i class="fas fa-grip"></i><span>Dashboard</span>
                 </a>
-                <a class="nb-link <?= in_array(basename($_SERVER['PHP_SELF']), ['machines_billing_list.php','machines_billing_form.php','machines_billing_pdf.php']) ? 'nb-active' : '' ?>"
-                    href="machines_billing_list.php">
+                <a class="nb-link <?= in_array($nbPage, $engItems['reports']) ? 'nb-active' : '' ?>"
+                   href="machines_report_list.php">
+                    <i class="fas fa-screwdriver-wrench"></i><span>Machine Reports</span>
+                </a>
+                <a class="nb-link <?= in_array($nbPage, $engItems['billing']) ? 'nb-active' : '' ?>"
+                   href="machines_billing_list.php">
                     <i class="fas fa-file-invoice-dollar"></i><span>Annual Billing</span>
                 </a>
-                <a class="nb-link <?= in_array(basename($_SERVER['PHP_SELF']), ['conveyance_list.php','conveyance_form.php','conveyance_print.php']) ? 'nb-active' : '' ?>"
+                <a class="nb-link <?= in_array($nbPage, $engItems['convey']) ? 'nb-active' : '' ?>"
                    href="conveyance_list.php">
                     <i class="fas fa-route"></i><span>Conveyance Bills</span>
                 </a>
-                <a class="nb-link <?= basename($_SERVER['PHP_SELF']) == 'machines_report_action_list.php' ? 'nb-active' : '' ?>"
-                    href="machines_report_action_list.php">
+                <a class="nb-link <?= in_array($nbPage, $engItems['actions']) ? 'nb-active' : '' ?>"
+                   href="machines_report_action_list.php">
                     <i class="fas fa-list-check"></i><span>Report Actions</span>
+                </a>
+                <a class="nb-link <?= in_array($nbPage, $engItems['labs']) ? 'nb-active' : '' ?>"
+                   href="gold_labs_list.php">
+                    <i class="fas fa-flask-vial"></i><span>Gold Testing Labs</span>
+                </a>
+                <a class="nb-link <?= in_array($nbPage, $engItems['machines']) ? 'nb-active' : '' ?>"
+                   href="gold_lab_machines.php">
+                    <i class="fas fa-microchip"></i><span>Lab Machines</span>
                 </a>
             </div>
         </div>

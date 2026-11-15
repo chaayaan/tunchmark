@@ -56,7 +56,7 @@ $post      = function (string $k): string { $v = $_POST[$k] ?? ''; return is_str
 $selectedTexts = $savedActions;
 $partsRows   = $savedParts;
 $f = $report ?: [
-    'report_type' => '', 'report_date' => date('Y-m-d'), 'customer_name' => '', 'customer_address' => '', 'contact_person' => '',
+    'report_type' => '', 'lab_id' => '', 'machine_id' => '', 'report_date' => date('Y-m-d'), 'customer_name' => '', 'customer_address' => '', 'contact_person' => '',
     'designation' => '', 'telephone' => '', 'email' => '', 'work_start_date' => '', 'completion_date' => '', 'travel_time_hrs' => '',
     'working_hrs' => '', 'instrument_type' => '', 'model' => '', 'instrument_sr_no' => '', 'visit_type' => 'Physical', 'observations' => '',
     'additional_activities' => '', 'engineer_remarks' => '', 'customer_remarks' => '',
@@ -91,6 +91,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $checkLen($f['engineer_name'], 100, 'Engineer name');
     $checkLen($f['observations'], 1000, 'Observations');    $checkLen($f['additional_activities'], 1000, 'Additional activities');
     $checkLen($f['engineer_remarks'], 600, "Engineer's remarks"); $checkLen($f['customer_remarks'], 600, "Customer's remarks");
+
+    // --- Laboratory / machine link (both optional; a machine must belong to the selected lab) ---
+    $labIn  = ctype_digit($f['lab_id'])     ? (int)$f['lab_id']     : 0;
+    $machIn = ctype_digit($f['machine_id']) ? (int)$f['machine_id'] : 0;
+    if ($labIn > 0) {
+        $gs = $conn->prepare("SELECT id FROM gold_testing_lab_customers WHERE id = ? LIMIT 1");
+        $gs->bind_param("i", $labIn); $gs->execute();
+        if (!$gs->get_result()->fetch_row()) { $errors[] = "The selected laboratory does not exist."; $labIn = 0; }
+        $gs->close();
+    }
+    if ($machIn > 0) {
+        if ($labIn === 0) { $errors[] = "Select a laboratory before choosing a machine."; $machIn = 0; }
+        else {
+            $gs = $conn->prepare("SELECT id FROM gold_testing_lab_customers_machine WHERE id = ? AND customer_id = ? LIMIT 1");
+            $gs->bind_param("ii", $machIn, $labIn); $gs->execute();
+            if (!$gs->get_result()->fetch_row()) { $errors[] = "The selected machine does not belong to the selected laboratory."; $machIn = 0; }
+            $gs->close();
+        }
+    }
+    $f['lab_id']     = $labIn  > 0 ? (string)$labIn  : '';
+    $f['machine_id'] = $machIn > 0 ? (string)$machIn : '';
 
     // --- Spare parts rows ---
     $partsRows = []; $clean = [];
@@ -134,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // --- Persist inside one transaction ---
     if (!$errors) {
-        $cols = ['report_type','report_date','customer_name','customer_address','contact_person','designation','telephone','email',
+        $cols = ['report_type','lab_id','machine_id','report_date','customer_name','customer_address','contact_person','designation','telephone','email',
                  'work_start_date','completion_date','travel_time_hrs','working_hrs','instrument_type','model','instrument_sr_no',
                  'visit_type','observations','additional_activities','engineer_remarks','customer_remarks','engineer_name'];
         $vals = [];
@@ -202,6 +223,18 @@ foreach ($selectedTexts as $t) { if (isset($seen[$t])) continue; $seen[$t] = 1; 
 
 // spare parts: at least 3 rows
 while (count($partsRows) < 3) $partsRows[] = ['part_code' => '', 'part_description' => '', 'quantity' => '', 'billing_instructions' => ''];
+
+// ---------- Gold Testing Lab data for the Lab / Machine selects (embedded as JSON; no extra request) ----------
+$goldLabs = []; $goldMachines = [];
+foreach ($conn->query("SELECT id, customer_name, address, contact_person, designation_department, telephone, email FROM gold_testing_lab_customers ORDER BY customer_name ASC, id ASC") as $gl) {
+    $goldLabs[] = ['id' => (int)$gl['id'], 'customer_name' => $gl['customer_name'], 'address' => (string)$gl['address'], 'contact_person' => (string)$gl['contact_person'],
+                   'designation' => (string)$gl['designation_department'], 'telephone' => (string)$gl['telephone'], 'email' => (string)$gl['email']];
+}
+foreach ($conn->query("SELECT id, customer_id, machine_no, model_no, serial_no FROM gold_testing_lab_customers_machine ORDER BY machine_no ASC, id ASC") as $gm) {
+    $goldMachines[(int)$gm['customer_id']][] = ['id' => (int)$gm['id'], 'machine_no' => $gm['machine_no'], 'model_no' => (string)$gm['model_no'], 'serial_no' => (string)$gm['serial_no']];
+}
+$goldJson = json_encode(['labs' => $goldLabs, 'machines' => (object)$goldMachines],
+    JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
 
 $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', STR_PAD_LEFT) : 'New Machine Report';
 ?>
@@ -305,6 +338,21 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
         <div class="alert-err"><div class="alert-err-title"><i class="fas fa-circle-exclamation me-1"></i>Please fix the following:</div>
           <ul><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul></div>
       <?php endif; ?>
+
+      <!-- 0. Laboratory & machine (Gold Testing Lab link) -->
+      <div class="sec">
+        <div class="sec-head"><div class="sec-ico i-teal"><i class="fas fa-flask-vial"></i></div><div class="sec-title">Laboratory &amp; Machine</div><div class="sec-meta">Optional · fills the fields below</div></div>
+        <div class="sec-body"><div class="row g-3">
+          <div class="col-12 col-md-6"><label class="lbl" for="lab_id">Laboratory</label>
+            <select class="form-select" id="lab_id" name="lab_id"><option value="">— None / one-off customer —</option>
+              <?php foreach ($goldLabs as $gl): ?><option value="<?= (int)$gl['id'] ?>" <?= (string)$f['lab_id'] === (string)$gl['id'] ? 'selected' : '' ?>><?= h($gl['customer_name']) ?></option><?php endforeach; ?>
+            </select>
+            <div class="form-text">Picking a laboratory fills the customer details below. <a href="gold_labs_list.php">Manage labs</a></div></div>
+          <div class="col-12 col-md-6"><label class="lbl" for="machine_id">Machine</label>
+            <select class="form-select" id="machine_id" name="machine_id" disabled><option value="">— Select a laboratory first —</option></select>
+            <div class="form-text">Fills Instrument Type (Machine No.), Model and Serial No. below.</div></div>
+        </div></div>
+      </div>
 
       <!-- 1. Type -->
       <div class="sec">
@@ -420,6 +468,44 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+<script>
+// Gold Testing Lab: Lab -> customer fields, Machine -> instrument fields (data embedded above, no request)
+(function () {
+  var GOLD = <?= $goldJson ?>;
+  var labSel = document.getElementById('lab_id'), machSel = document.getElementById('machine_id');
+  var SAVED_MACHINE = <?= json_encode((string)$f['machine_id']) ?>;
+  function setVal(id, v) { var el = document.getElementById(id); if (el) el.value = v || ''; }
+  function fillMachines(labId, selected) {
+    var list = (labId && GOLD.machines[labId]) ? GOLD.machines[labId] : [];
+    machSel.innerHTML = '';
+    var first = document.createElement('option');
+    first.value = ''; first.textContent = !labId ? '— Select a laboratory first —' : (list.length ? '— Select a machine —' : '— This laboratory has no machines —');
+    machSel.appendChild(first);
+    list.forEach(function (m) {
+      var o = document.createElement('option');
+      o.value = m.id; o.textContent = m.machine_no + (m.serial_no ? ' · ' + m.serial_no : '');
+      if (String(m.id) === String(selected)) o.selected = true;
+      machSel.appendChild(o);
+    });
+    machSel.disabled = !labId;
+  }
+  labSel.addEventListener('change', function () {
+    var id = parseInt(this.value, 10) || 0;
+    fillMachines(id, '');
+    var lab = GOLD.labs.filter(function (l) { return l.id === id; })[0];
+    if (!lab) return;                                   // clearing the lab keeps whatever is typed
+    setVal('customer_name', lab.customer_name); setVal('customer_address', lab.address); setVal('contact_person', lab.contact_person);
+    setVal('designation', lab.designation); setVal('telephone', lab.telephone); setVal('email', lab.email);
+  });
+  machSel.addEventListener('change', function () {
+    var id = parseInt(labSel.value, 10) || 0, mid = parseInt(this.value, 10) || 0;
+    var m = ((id && GOLD.machines[id]) || []).filter(function (x) { return x.id === mid; })[0];
+    if (!m) return;
+    setVal('instrument_type', m.machine_no); setVal('model', m.model_no); setVal('instrument_sr_no', m.serial_no);
+  });
+  fillMachines(parseInt(labSel.value, 10) || 0, SAVED_MACHINE);   // on load only restores the selection; never overwrites saved text
+})();
+</script>
 <script>
 (function () {
   var MAX = <?= MR_MAX_PARTS ?>;

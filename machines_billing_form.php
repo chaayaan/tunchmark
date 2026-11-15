@@ -34,7 +34,7 @@ if ($isEdit) {
 }
 
 $f = $bill ?: [
-    'billing_date' => date('Y-m-d'), 'customer_name' => '', 'customer_address' => '', 'contact_person' => '', 'designation' => '',
+    'billing_date' => date('Y-m-d'), 'lab_id' => '', 'customer_name' => '', 'customer_address' => '', 'contact_person' => '', 'designation' => '',
     'telephone' => '', 'email' => '', 'discount' => '', 'payment_status' => 'unpaid', 'engineer_sign_text' => '',
 ];
 if ($isEdit && (float)$f['discount'] == 0) $f['discount'] = '';
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit('Invalid or expired form token. Please go back, refresh the page and try again.');
     }
 
-    foreach (['billing_date', 'customer_name', 'customer_address', 'contact_person', 'designation', 'telephone', 'email', 'discount',
+    foreach (['billing_date', 'lab_id', 'customer_name', 'customer_address', 'contact_person', 'designation', 'telephone', 'email', 'discount',
               'payment_status', 'engineer_sign_text'] as $k) $f[$k] = $post($k);
 
     if ($f['billing_date'] === '' || !$validDate($f['billing_date'])) $errors[] = "A valid bill date is required.";
@@ -70,6 +70,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $checkLen($f['contact_person'], 100, 'Contact person'); $checkLen($f['designation'], 100, 'Designation');
     $checkLen($f['email'], 120, 'Email');
     $checkLen($f['engineer_sign_text'], 300, 'Engineer sign box text');
+
+    // --- Laboratory link (optional) ---
+    $labIn = ctype_digit($f['lab_id']) ? (int)$f['lab_id'] : 0;
+    if ($labIn > 0) {
+        $gs = $conn->prepare("SELECT id FROM gold_testing_lab_customers WHERE id = ? LIMIT 1");
+        $gs->bind_param("i", $labIn); $gs->execute();
+        if (!$gs->get_result()->fetch_row()) { $errors[] = "The selected laboratory does not exist."; $labIn = 0; }
+        $gs->close();
+    }
+    $f['lab_id'] = $labIn > 0 ? (string)$labIn : '';
 
     // --- Services: typed manually (service text, unit charge, total amount) ---
     $itemRows = []; $clean = []; $subC = 0;
@@ -108,9 +118,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- Persist inside one transaction ---
     if (!$errors) {
         $nn = fn(string $v) => $v === '' ? null : $v;
-        $cols = ['billing_date', 'customer_name', 'customer_address', 'contact_person', 'designation', 'telephone', 'email',
+        $cols = ['billing_date', 'lab_id', 'customer_name', 'customer_address', 'contact_person', 'designation', 'telephone', 'email',
                  'subtotal', 'discount', 'grand_total', 'payment_status', 'engineer_sign_text'];
-        $vals = [$f['billing_date'], $f['customer_name'], $nn($f['customer_address']), $nn($f['contact_person']), $nn($f['designation']),
+        $vals = [$f['billing_date'], $nn($f['lab_id']), $f['customer_name'], $nn($f['customer_address']), $nn($f['contact_person']), $nn($f['designation']),
                  $nn($f['telephone']), $nn($f['email']), $fmtC($subC), $fmtC($discC), $fmtC($grandC), $f['payment_status'],
                  $nn($f['engineer_sign_text'])];
         try {
@@ -155,6 +165,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // at least 3 service rows on screen
 while (count($itemRows) < 3) $itemRows[] = ['service' => '', 'unit_charge' => '', 'total_amount' => ''];
+
+// ---------- Gold Testing Lab data for the Lab / Machine selects (embedded as JSON; no extra request) ----------
+$goldLabs = [];
+foreach ($conn->query("SELECT id, customer_name, address, contact_person, designation_department, telephone, email FROM gold_testing_lab_customers ORDER BY customer_name ASC, id ASC") as $gl) {
+    $goldLabs[] = ['id' => (int)$gl['id'], 'customer_name' => $gl['customer_name'], 'address' => (string)$gl['address'], 'contact_person' => (string)$gl['contact_person'],
+                   'designation' => (string)$gl['designation_department'], 'telephone' => (string)$gl['telephone'], 'email' => (string)$gl['email']];
+}
+
+$goldJson = json_encode(['labs' => $goldLabs],
+    JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
 
 $pageTitle = $isEdit ? 'Edit Bill AMB-' . str_pad((string)$billId, 5, '0', STR_PAD_LEFT) : 'New Annual Maintenance Bill';
 ?>
@@ -247,6 +267,18 @@ $pageTitle = $isEdit ? 'Edit Bill AMB-' . str_pad((string)$billId, 5, '0', STR_P
           <ul><?php foreach ($errors as $e): ?><li><?= h($e) ?></li><?php endforeach; ?></ul></div>
       <?php endif; ?>
 
+      <!-- 0. Laboratory (Gold Testing Lab link) -->
+      <div class="sec">
+        <div class="sec-head"><div class="sec-ico i-teal"><i class="fas fa-flask-vial"></i></div><div class="sec-title">Laboratory</div><div class="sec-meta">Optional · fills the fields below</div></div>
+        <div class="sec-body"><div class="row g-3">
+          <div class="col-12 col-md-6"><label class="lbl" for="lab_id">Laboratory</label>
+            <select class="form-select" id="lab_id" name="lab_id"><option value="">— None / one-off customer —</option>
+              <?php foreach ($goldLabs as $gl): ?><option value="<?= (int)$gl['id'] ?>" <?= (string)$f['lab_id'] === (string)$gl['id'] ? 'selected' : '' ?>><?= h($gl['customer_name']) ?></option><?php endforeach; ?>
+            </select>
+            <div class="form-text">Picking a laboratory fills the customer details below. <a href="gold_labs_list.php">Manage labs</a></div></div>
+        </div></div>
+      </div>
+
       <!-- 1. Customer -->
       <div class="sec">
         <div class="sec-head"><div class="sec-ico i-blue"><i class="fas fa-building"></i></div><div class="sec-title">Customer Details</div></div>
@@ -311,6 +343,21 @@ $pageTitle = $isEdit ? 'Edit Bill AMB-' . str_pad((string)$billId, 5, '0', STR_P
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.bundle.min.js"></script>
+<script>
+// Gold Testing Lab: Lab -> customer fields (data embedded above, no request)
+(function () {
+  var GOLD = <?= $goldJson ?>;
+  var labSel = document.getElementById('lab_id');
+  function setVal(id, v) { var el = document.getElementById(id); if (el) el.value = v || ''; }
+  labSel.addEventListener('change', function () {
+    var id = parseInt(this.value, 10) || 0;
+    var lab = GOLD.labs.filter(function (l) { return l.id === id; })[0];
+    if (!lab) return;                                   // clearing the lab keeps whatever is typed
+    setVal('customer_name', lab.customer_name); setVal('customer_address', lab.address); setVal('contact_person', lab.contact_person);
+    setVal('designation', lab.designation); setVal('telephone', lab.telephone); setVal('email', lab.email);
+  });
+})();
+</script>
 <script>
 (function () {
   var MAX = <?= AMB_MAX_ITEMS ?>;
