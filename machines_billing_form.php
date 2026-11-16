@@ -244,6 +244,21 @@ $pageTitle = $isEdit ? 'Edit Bill AMB-' . str_pad((string)$billId, 5, '0', STR_P
       .action-bar{flex-direction:column-reverse;align-items:stretch;}.action-bar>*{justify-content:center;}
       .totals{max-width:none;}
     }
+
+    /* ===== formal UI: same look as the Gold Testing Labs pages ===== */
+    .sec{border-radius:4px;border-color:#cbd5e1;box-shadow:none;}
+    .sec-head{background:#f3f4f6;border-bottom:1px solid #cbd5e1;}
+    .form-control,.form-select{border:1px solid #9ca3af;border-radius:4px;}
+    .btn-act,.btn-add,.btn-soft,.btn-ghost,.btn-submit{border-radius:4px;}
+    .type-card,.chk-item{border-radius:4px;border-width:1px;}
+    .btn-rm{border-radius:4px;}
+    .action-bar{background:#f3f4f6;border-top:1px solid #cbd5e1;}
+    .totals{border:1px solid #cbd5e1;border-radius:4px;background:#fff;padding:10px 14px;}
+    @media(min-width:768px){
+      .bi-head-row{background:#f3f4f6;border:1px solid #cbd5e1;border-bottom:0;padding:9px 10px;margin-bottom:0;color:#111827;text-transform:none;letter-spacing:0;font-size:.82rem;}
+      #biBody .bi-row{margin-bottom:0;padding:8px 10px;border:1px solid #e2e8f0;border-top:0;background:#fff;}
+      #biBody{margin-bottom:10px;}
+    }
   </style>
 </head>
 <body>

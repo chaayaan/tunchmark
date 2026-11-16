@@ -41,18 +41,18 @@ if ($type === 'other')      { $where[] = "u.rec_type NOT IN ('installation','ser
 elseif ($type !== '')       { $where[] = 'u.rec_type = ?'; $types .= 's'; $params[] = $type; }
 if ($dateFrom !== '')       { $where[] = 'u.rec_date >= ?'; $types .= 's'; $params[] = $dateFrom; }
 if ($dateTo !== '')         { $where[] = 'u.rec_date <= ?'; $types .= 's'; $params[] = $dateTo; }
-if ($machine > 0)           { $where[] = 'u.machine_id = ?'; $types .= 'i'; $params[] = $machine; }   // billing is not tied to a machine, so it drops out
+if ($machine > 0)           { $where[] = "(u.rec_type <> 'billing' AND EXISTS (SELECT 1 FROM machines_report_machine x WHERE x.report_id = u.rec_id AND x.machine_id = ?))"; $types .= 'i'; $params[] = $machine; }   // billing is not tied to a machine, so it drops out
 if ($ref !== '')            { $where[] = 'u.ref LIKE ?'; $types .= 's'; $params[] = '%' . addcslashes($ref, '%_\\') . '%'; }
 $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // ---------- One read-only UNION ALL over the existing tables (nothing is copied or duplicated) ----------
 $union = "
   SELECT r.report_date AS rec_date, r.report_type AS rec_type, r.id AS rec_id, CONCAT('MR-', LPAD(r.id, 5, '0')) AS ref,
-         r.machine_id AS machine_id, m.machine_no AS m_no, m.serial_no AS m_serial,
+         r.machine_id AS machine_id, (SELECT GROUP_CONCAT(mm.machine_no ORDER BY mm.machine_no SEPARATOR ', ') FROM machines_report_machine x JOIN gold_testing_lab_customers_machine mm ON mm.id = x.machine_id WHERE x.report_id = r.id) AS m_no,
+         (SELECT GROUP_CONCAT(mm.serial_no ORDER BY mm.machine_no SEPARATOR ', ') FROM machines_report_machine x JOIN gold_testing_lab_customers_machine mm ON mm.id = x.machine_id WHERE x.report_id = r.id AND mm.serial_no IS NOT NULL) AS m_serial,
          r.instrument_type AS snap_type, r.model AS snap_model, r.instrument_sr_no AS snap_sr,
          LEFT(r.observations, 160) AS descr, NULL AS amount, NULL AS pay_status, uc.name AS creator
   FROM machines_report r
-  LEFT JOIN gold_testing_lab_customers_machine m ON m.id = r.machine_id
   LEFT JOIN users uc ON uc.id = r.created_by
   WHERE r.lab_id = ?
   UNION ALL

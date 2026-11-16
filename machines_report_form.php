@@ -18,7 +18,7 @@ $errors   = [];
 
 // ---------- Load existing report ----------
 $report = null; $savedActions = []; $savedParts = [];
-$hasOther = false; $otherText = '';      // free-text "Other" action (stored as plain text with is_other = 1)
+$hasOther = false; $otherTexts = [];     // free-text "Other" actions, one row each (stored as plain text with is_other = 1)
 if ($isEdit) {
     $stmt = $conn->prepare("SELECT * FROM machines_report WHERE id = ? LIMIT 1");
     $stmt->bind_param("i", $reportId);
@@ -34,10 +34,10 @@ if ($isEdit) {
     foreach ($stmt->get_result() as $a) $savedActions[] = $a['action_text'];
     $stmt->close();
 
-    $stmt = $conn->prepare("SELECT action_text FROM machines_report_action WHERE report_id = ? AND is_other = 1 ORDER BY sort_order, id LIMIT 1");
+    $stmt = $conn->prepare("SELECT action_text FROM machines_report_action WHERE report_id = ? AND is_other = 1 ORDER BY sort_order, id");
     $stmt->bind_param("i", $reportId);
     $stmt->execute();
-    if ($o = $stmt->get_result()->fetch_assoc()) { $hasOther = true; $otherText = $o['action_text']; }
+    foreach ($stmt->get_result() as $o) { $hasOther = true; if (trim((string)$o['action_text']) !== '') $otherTexts[] = $o['action_text']; }
     $stmt->close();
 
     $stmt = $conn->prepare("SELECT part_code, part_description, quantity, billing_instructions FROM machines_report_spareparts WHERE report_id = ? ORDER BY sr_no, id");
@@ -86,32 +86,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $checkLen($f['customer_name'], 150, 'Customer name');   $checkLen($f['customer_address'], 400, 'Address');
     $checkLen($f['contact_person'], 100, 'Contact person'); $checkLen($f['designation'], 100, 'Designation');
     $checkLen($f['email'], 120, 'Email');                   $checkLen($f['travel_time_hrs'], 30, 'Travel time');
-    $checkLen($f['working_hrs'], 30, 'Working hrs');        $checkLen($f['instrument_type'], 100, 'Instrument type');
-    $checkLen($f['model'], 100, 'Model');                   $checkLen($f['instrument_sr_no'], 100, 'Instrument Sr. No.');
+    $checkLen($f['working_hrs'], 30, 'Working hrs');        $checkLen($f['instrument_type'], 255, 'Instrument type');
+    $checkLen($f['model'], 255, 'Model');                   $checkLen($f['instrument_sr_no'], 255, 'Instrument Sr. No.');
     $checkLen($f['engineer_name'], 100, 'Engineer name');
     $checkLen($f['observations'], 1000, 'Observations');    $checkLen($f['additional_activities'], 1000, 'Additional activities');
     $checkLen($f['engineer_remarks'], 600, "Engineer's remarks"); $checkLen($f['customer_remarks'], 600, "Customer's remarks");
 
-    // --- Laboratory / machine link (both optional; a machine must belong to the selected lab) ---
-    $labIn  = ctype_digit($f['lab_id'])     ? (int)$f['lab_id']     : 0;
-    $machIn = ctype_digit($f['machine_id']) ? (int)$f['machine_id'] : 0;
+    // --- Laboratory / machines link (all optional; every selected machine must belong to the selected lab) ---
+    $labIn = ctype_digit($f['lab_id']) ? (int)$f['lab_id'] : 0;
     if ($labIn > 0) {
         $gs = $conn->prepare("SELECT id FROM gold_testing_lab_customers WHERE id = ? LIMIT 1");
         $gs->bind_param("i", $labIn); $gs->execute();
         if (!$gs->get_result()->fetch_row()) { $errors[] = "The selected laboratory does not exist."; $labIn = 0; }
         $gs->close();
     }
-    if ($machIn > 0) {
-        if ($labIn === 0) { $errors[] = "Select a laboratory before choosing a machine."; $machIn = 0; }
+    $postIds = [];
+    foreach ((array)($_POST['machine_ids'] ?? []) as $v) {
+        if (is_string($v) && ctype_digit($v) && (int)$v > 0 && !in_array((int)$v, $postIds, true)) $postIds[] = (int)$v;
+    }
+    $selIds = $postIds;
+    if ($postIds) {
+        if ($labIn === 0) { $errors[] = "Select a laboratory before choosing machines."; $selIds = []; }
         else {
-            $gs = $conn->prepare("SELECT id FROM gold_testing_lab_customers_machine WHERE id = ? AND customer_id = ? LIMIT 1");
-            $gs->bind_param("ii", $machIn, $labIn); $gs->execute();
-            if (!$gs->get_result()->fetch_row()) { $errors[] = "The selected machine does not belong to the selected laboratory."; $machIn = 0; }
+            $ph = implode(',', array_fill(0, count($postIds), '?'));
+            $gs = $conn->prepare("SELECT COUNT(*) FROM gold_testing_lab_customers_machine WHERE customer_id = ? AND id IN ($ph)");
+            $gs->bind_param(str_repeat('i', count($postIds) + 1), $labIn, ...$postIds); $gs->execute();
+            if ((int)$gs->get_result()->fetch_row()[0] !== count($postIds)) { $errors[] = "One or more selected machines do not belong to the selected laboratory."; $selIds = []; }
             $gs->close();
         }
     }
-    $f['lab_id']     = $labIn  > 0 ? (string)$labIn  : '';
-    $f['machine_id'] = $machIn > 0 ? (string)$machIn : '';
+    $f['lab_id']     = $labIn > 0 ? (string)$labIn : '';
+    $f['machine_id'] = $selIds ? (string)$selIds[0] : '';        // first machine, kept for older pages
 
     // --- Spare parts rows ---
     $partsRows = []; $clean = [];
@@ -148,10 +153,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (count($actionRows) > 30) $errors[] = "Too many actions selected (maximum 30).";
     $selectedTexts = $actionRows;
 
-    // --- "Other" (hand-written) action: one extra row ---
-    $hasOther  = !empty($_POST['other_on']);
-    $otherText = $hasOther ? $post('other_text') : '';
-    if (mb_strlen($otherText) > 255) $errors[] = "The 'Other' action must be at most 255 characters.";
+    // --- "Other" (hand-written) actions: any number of extra rows, one point each ---
+    $hasOther = !empty($_POST['other_on']); $otherTexts = [];
+    if ($hasOther) {
+        foreach ((array)($_POST['other_text'] ?? []) as $v) {
+            if (!is_string($v)) continue;
+            $t = trim($v);
+            if ($t === '') continue;                                   // empty boxes are ignored
+            if (mb_strlen($t) > 255) { $errors[] = "An 'Other' action is longer than 255 characters."; continue; }
+            $otherTexts[] = $t;
+        }
+        if (count($otherTexts) > 10) $errors[] = "Too many 'Other' actions (maximum 10).";
+    }
 
     // --- Persist inside one transaction ---
     if (!$errors) {
@@ -184,11 +197,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $rid = (int)$conn->insert_id; $stmt->close();
             }
 
+            // every selected machine of this report
+            $d = $conn->prepare("DELETE FROM machines_report_machine WHERE report_id = ?");
+            $d->bind_param("i", $rid); $d->execute(); $d->close();
+            if ($selIds) {
+                $mm = $conn->prepare("INSERT INTO machines_report_machine (report_id, machine_id) VALUES (?, ?)");
+                foreach ($selIds as $mid) { $mm->bind_param("ii", $rid, $mid); $mm->execute(); }
+                $mm->close();
+            }
+
             $stmt = $conn->prepare("INSERT INTO machines_report_action (report_id, action_text, is_other, sort_order) VALUES (?, ?, ?, ?)");
             $so = 0;
             foreach ($actionRows as $atext) { $so++; $io = 0; $stmt->bind_param("isii", $rid, $atext, $io, $so); $stmt->execute(); }
-            if ($hasOther) {                       // free-text row; empty text = blank line for hand-writing on the PDF
-                $so++; $io = 1; $stmt->bind_param("isii", $rid, $otherText, $io, $so); $stmt->execute();
+            if ($hasOther) {                       // one row per "Other" action; none typed = one blank line for hand-writing on the PDF
+                foreach (($otherTexts ?: ['']) as $ot) { $so++; $io = 1; $stmt->bind_param("isii", $rid, $ot, $io, $so); $stmt->execute(); }
             }
             $stmt->close();
             if ($clean) {
@@ -232,6 +254,25 @@ foreach ($conn->query("SELECT id, customer_name, address, contact_person, design
 }
 foreach ($conn->query("SELECT id, customer_id, machine_no, model_no, serial_no FROM gold_testing_lab_customers_machine ORDER BY machine_no ASC, id ASC") as $gm) {
     $goldMachines[(int)$gm['customer_id']][] = ['id' => (int)$gm['id'], 'machine_no' => $gm['machine_no'], 'model_no' => (string)$gm['model_no'], 'serial_no' => (string)$gm['serial_no']];
+}
+// machines ticked on this report (after a failed save: what was posted; when editing: what is stored)
+if (!isset($selIds)) {
+    $selIds = [];
+    if ($isEdit) {
+        $qs = $conn->prepare("SELECT machine_id FROM machines_report_machine WHERE report_id = ? ORDER BY machine_id");
+        $qs->bind_param("i", $reportId); $qs->execute();
+        foreach ($qs->get_result() as $row) $selIds[] = (int)$row['machine_id'];
+        $qs->close();
+        if (!$selIds && !empty($f['machine_id'])) $selIds = [(int)$f['machine_id']];
+        if (count($selIds) > 1 && !empty($f['instrument_type'])) {      // keep the order of the saved "A, B, C" text
+            $savedNames = array_map('trim', explode(',', (string)$f['instrument_type'])); $noById = [];
+            foreach ($goldMachines as $glist) foreach ($glist as $gm) $noById[$gm['id']] = $gm['machine_no'];
+            usort($selIds, function ($a, $b) use ($savedNames, $noById) {
+                $pa = array_search($noById[$a] ?? '', $savedNames, true); $pb = array_search($noById[$b] ?? '', $savedNames, true);
+                return ($pa === false ? 999 : $pa) <=> ($pb === false ? 999 : $pb);
+            });
+        }
+    }
 }
 $goldJson = json_encode(['labs' => $goldLabs, 'machines' => (object)$goldMachines],
     JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE);
@@ -316,6 +357,25 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
       .sp-mlbl{display:block;font-size:.68rem;font-weight:700;text-transform:uppercase;color:var(--t4);margin-bottom:2px;}
       .action-bar{flex-direction:column-reverse;align-items:stretch;}.action-bar>*{justify-content:center;}
     }
+
+    /* ===== formal UI: same look as the Gold Testing Labs pages ===== */
+    .sec{border-radius:4px;border-color:#cbd5e1;box-shadow:none;}
+    .sec-head{background:#f3f4f6;border-bottom:1px solid #cbd5e1;}
+    .form-control,.form-select{border:1px solid #9ca3af;border-radius:4px;}
+    .btn-act,.btn-add,.btn-soft,.btn-ghost,.btn-submit{border-radius:4px;}
+    .type-card,.chk-item{border-radius:4px;border-width:1px;}
+    .btn-rm{border-radius:4px;}
+    .action-bar{background:#f3f4f6;border-top:1px solid #cbd5e1;}
+    .other-row{display:flex;align-items:center;gap:8px;margin-top:6px;}
+    .other-no{font-family:'DM Mono',monospace;font-weight:600;color:var(--t3);width:22px;text-align:right;flex-shrink:0;}
+    .mbox{border:1px solid #9ca3af;border-radius:4px;padding:6px 12px;max-height:200px;overflow:auto;background:#fff;}
+    .mrow{display:flex;align-items:flex-start;gap:9px;padding:5px 0;cursor:pointer;font-size:.875rem;margin:0;}
+    .mrow .form-check-input{margin-top:3px;flex-shrink:0;}
+    @media(min-width:768px){
+      .sp-head-row{background:#f3f4f6;border:1px solid #cbd5e1;border-bottom:0;padding:9px 10px;margin-bottom:0;color:#111827;text-transform:none;letter-spacing:0;font-size:.82rem;}
+      #spBody .sp-row{margin-bottom:0;padding:8px 10px;border:1px solid #e2e8f0;border-top:0;background:#fff;}
+      #spBody{margin-bottom:10px;}
+    }
   </style>
 </head>
 <body>
@@ -348,9 +408,10 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
               <?php foreach ($goldLabs as $gl): ?><option value="<?= (int)$gl['id'] ?>" <?= (string)$f['lab_id'] === (string)$gl['id'] ? 'selected' : '' ?>><?= h($gl['customer_name']) ?></option><?php endforeach; ?>
             </select>
             <div class="form-text">Picking a laboratory fills the customer details below. <a href="gold_labs_list.php">Manage labs</a></div></div>
-          <div class="col-12 col-md-6"><label class="lbl" for="machine_id">Machine</label>
-            <select class="form-select" id="machine_id" name="machine_id" disabled><option value="">— Select a laboratory first —</option></select>
-            <div class="form-text">Fills Instrument Type (Machine No.), Model and Serial No. below.</div></div>
+          <div class="col-12 col-md-6"><label class="lbl">Machines <span class="muted" style="text-transform:none;letter-spacing:0;font-weight:400;">(select one or more)</span></label>
+            <div class="mbox" id="machBox"><span class="text-muted">Select a laboratory first</span></div>
+            <div class="form-text">
+              <a href="#" id="machAll">Select all</a> · <a href="#" id="machNone">Clear</a></div></div>
         </div></div>
       </div>
 
@@ -389,9 +450,9 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
           <div class="col-6 col-md-3"><label class="lbl" for="completion_date">Completion Date</label><input type="date" class="form-control" id="completion_date" name="completion_date" value="<?= h($f['completion_date']) ?>"></div>
           <div class="col-6 col-md-3"><label class="lbl" for="travel_time_hrs">Travel Time Hrs.</label><input type="text" class="form-control" id="travel_time_hrs" name="travel_time_hrs" maxlength="30" placeholder="e.g. 10 hrs" value="<?= h($f['travel_time_hrs']) ?>"></div>
           <div class="col-6 col-md-3"><label class="lbl" for="working_hrs">Working Hrs.</label><input type="text" class="form-control" id="working_hrs" name="working_hrs" maxlength="30" placeholder="e.g. 3 hrs" value="<?= h($f['working_hrs']) ?>"></div>
-          <div class="col-12 col-md-6"><label class="lbl" for="instrument_type">Instrument Type <span class="req">*</span></label><input type="text" class="form-control" id="instrument_type" name="instrument_type" maxlength="100" value="<?= h($f['instrument_type']) ?>" required></div>
-          <div class="col-12 col-md-6"><label class="lbl" for="model">Model</label><input type="text" class="form-control" id="model" name="model" maxlength="100" value="<?= h($f['model']) ?>"></div>
-          <div class="col-12 col-md-6"><label class="lbl" for="instrument_sr_no">Instrument Sr. No.</label><input type="text" class="form-control" id="instrument_sr_no" name="instrument_sr_no" maxlength="100" value="<?= h($f['instrument_sr_no']) ?>"></div>
+          <div class="col-12 col-md-6"><label class="lbl" for="instrument_type">Instrument Type <span class="req">*</span></label><input type="text" class="form-control" id="instrument_type" name="instrument_type" maxlength="255" value="<?= h($f['instrument_type']) ?>" required></div>
+          <div class="col-12 col-md-6"><label class="lbl" for="model">Model</label><input type="text" class="form-control" id="model" name="model" maxlength="255" value="<?= h($f['model']) ?>"></div>
+          <div class="col-12 col-md-6"><label class="lbl" for="instrument_sr_no">Instrument Sr. No.</label><input type="text" class="form-control" id="instrument_sr_no" name="instrument_sr_no" maxlength="255" value="<?= h($f['instrument_sr_no']) ?>"></div>
           <div class="col-12 col-md-6"><label class="lbl" for="visit_type">Visit Type</label>
             <select class="form-select" id="visit_type" name="visit_type"><?php foreach (['Physical', 'Remote'] as $v): ?><option <?= $f['visit_type'] === $v ? 'selected' : '' ?>><?= $v ?></option><?php endforeach; ?></select></div>
           <div class="col-12"><label class="lbl" for="observations">Observations</label><textarea class="form-control" id="observations" name="observations" rows="3" maxlength="1000"><?= h($f['observations']) ?></textarea></div>
@@ -419,8 +480,15 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
               <div class="chk-item chk-other">
                 <input class="form-check-input" type="checkbox" name="other_on" id="otherOn" value="1" <?= $hasOther ? 'checked' : '' ?>>
                 <div class="flex-grow-1">
-                  <label class="chk-text fw-bold" for="otherOn" style="cursor:pointer">Other <span class="text-muted fw-normal">(type it here, or leave blank to hand-write on the printed report)</span></label>
-                  <input type="text" class="form-control mt-1" name="other_text" id="otherText" maxlength="255" placeholder="Other action…" value="<?= h($otherText) ?>" <?= $hasOther ? '' : 'disabled' ?>>
+                  <label class="chk-text fw-bold" for="otherOn" style="cursor:pointer">Other <span class="text-muted fw-normal">(each action is its own point; leave blank to hand-write on the printed report)</span></label>
+                  <div id="otherList">
+                    <?php foreach (($otherTexts ?: ['']) as $oi => $ot): ?>
+                    <div class="other-row"><span class="other-no"><?= $oi + 1 ?></span>
+                      <input type="text" class="form-control" name="other_text[]" maxlength="255" placeholder="Other action…" value="<?= h($ot) ?>" <?= $hasOther ? '' : 'disabled' ?>>
+                      <button type="button" class="btn-rm other-rm" title="Remove" <?= $hasOther ? '' : 'disabled' ?>><i class="fas fa-trash-can"></i></button></div>
+                    <?php endforeach; ?>
+                  </div>
+                  <button type="button" class="btn btn-outline-primary btn-sm fw-bold mt-2" id="otherAdd" <?= $hasOther ? '' : 'disabled' ?>><i class="fas fa-plus"></i> Add another action</button>
                 </div>
               </div>
             </div>
@@ -472,38 +540,60 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
 // Gold Testing Lab: Lab -> customer fields, Machine -> instrument fields (data embedded above, no request)
 (function () {
   var GOLD = <?= $goldJson ?>;
-  var labSel = document.getElementById('lab_id'), machSel = document.getElementById('machine_id');
-  var SAVED_MACHINE = <?= json_encode((string)$f['machine_id']) ?>;
+  var labSel = document.getElementById('lab_id'), box = document.getElementById('machBox');
+  var order = <?= json_encode(array_map('strval', $selIds)) ?>;        // machine ids in the order they were ticked
   function setVal(id, v) { var el = document.getElementById(id); if (el) el.value = v || ''; }
-  function fillMachines(labId, selected) {
-    var list = (labId && GOLD.machines[labId]) ? GOLD.machines[labId] : [];
-    machSel.innerHTML = '';
-    var first = document.createElement('option');
-    first.value = ''; first.textContent = !labId ? '— Select a laboratory first —' : (list.length ? '— Select a machine —' : '— This laboratory has no machines —');
-    machSel.appendChild(first);
+  function machinesOf(labId) { return (labId && GOLD.machines[labId]) ? GOLD.machines[labId] : []; }
+  function render(labId) {
+    box.innerHTML = '';
+    var list = machinesOf(labId);
+    if (!labId || !list.length) {
+      var s = document.createElement('span'); s.className = 'text-muted';
+      s.textContent = !labId ? 'Select a laboratory first' : 'This laboratory has no machines yet';
+      box.appendChild(s); return;
+    }
     list.forEach(function (m) {
-      var o = document.createElement('option');
-      o.value = m.id; o.textContent = m.machine_no + (m.serial_no ? ' · ' + m.serial_no : '');
-      if (String(m.id) === String(selected)) o.selected = true;
-      machSel.appendChild(o);
+      var l = document.createElement('label'); l.className = 'mrow';
+      var c = document.createElement('input'); c.type = 'checkbox'; c.className = 'form-check-input'; c.name = 'machine_ids[]'; c.value = m.id;
+      c.checked = order.indexOf(String(m.id)) !== -1;
+      var t = document.createElement('span');
+      t.textContent = m.machine_no + (m.model_no ? ' · ' + m.model_no : '') + (m.serial_no ? ' · SN ' + m.serial_no : '');
+      l.appendChild(c); l.appendChild(t); box.appendChild(l);
     });
-    machSel.disabled = !labId;
   }
+  function applyFields() {                                   // instrument fields = ticked machines, in the order they were ticked
+    var list = machinesOf(parseInt(labSel.value, 10) || 0);
+    var ms = order.map(function (id) { return list.filter(function (m) { return String(m.id) === id; })[0]; }).filter(Boolean);
+    var uniq = function (a) { return a.filter(function (v, i) { return v && a.indexOf(v) === i; }); };
+    setVal('instrument_type', ms.map(function (m) { return m.machine_no; }).join(', '));
+    setVal('model', uniq(ms.map(function (m) { return m.model_no; })).join(', '));
+    setVal('instrument_sr_no', ms.map(function (m) { return m.serial_no; }).filter(Boolean).join(', '));
+  }
+  box.addEventListener('change', function (e) {
+    var c = e.target; if (!c || c.type !== 'checkbox') return;
+    var id = String(c.value), i = order.indexOf(id);
+    if (c.checked && i === -1) order.push(id); else if (!c.checked && i !== -1) order.splice(i, 1);
+    applyFields();
+  });
+  document.getElementById('machAll').addEventListener('click', function (e) {
+    e.preventDefault();
+    box.querySelectorAll('input[type=checkbox]').forEach(function (c) { if (!c.checked) { c.checked = true; order.push(String(c.value)); } });
+    applyFields();
+  });
+  document.getElementById('machNone').addEventListener('click', function (e) {
+    e.preventDefault();
+    box.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = false; });
+    order = []; applyFields();
+  });
   labSel.addEventListener('change', function () {
-    var id = parseInt(this.value, 10) || 0;
-    fillMachines(id, '');
+    var id = parseInt(this.value, 10) || 0, had = order.length > 0;
+    order = []; render(id); if (had) applyFields();
     var lab = GOLD.labs.filter(function (l) { return l.id === id; })[0];
     if (!lab) return;                                   // clearing the lab keeps whatever is typed
     setVal('customer_name', lab.customer_name); setVal('customer_address', lab.address); setVal('contact_person', lab.contact_person);
     setVal('designation', lab.designation); setVal('telephone', lab.telephone); setVal('email', lab.email);
   });
-  machSel.addEventListener('change', function () {
-    var id = parseInt(labSel.value, 10) || 0, mid = parseInt(this.value, 10) || 0;
-    var m = ((id && GOLD.machines[id]) || []).filter(function (x) { return x.id === mid; })[0];
-    if (!m) return;
-    setVal('instrument_type', m.machine_no); setVal('model', m.model_no); setVal('instrument_sr_no', m.serial_no);
-  });
-  fillMachines(parseInt(labSel.value, 10) || 0, SAVED_MACHINE);   // on load only restores the selection; never overwrites saved text
+  render(parseInt(labSel.value, 10) || 0);                    // on load only restores the ticks; never rewrites saved text
 })();
 </script>
 <script>
@@ -533,8 +623,40 @@ $pageTitle = $isEdit ? 'Edit Report MR-' . str_pad((string)$reportId, 5, '0', ST
   });
   renumber();
 
-  var otherOn = document.getElementById('otherOn'), otherText = document.getElementById('otherText');
-  otherOn.addEventListener('change', function () { otherText.disabled = !this.checked; if (this.checked) otherText.focus(); });
+  // "Other" actions: add as many as needed, one point per row
+  var otherOn = document.getElementById('otherOn'), otherList = document.getElementById('otherList'), otherAdd = document.getElementById('otherAdd'), OTHER_MAX = 10;
+  function otherRows() { return otherList.querySelectorAll('.other-row'); }
+  function otherRefresh() {
+    var rows = otherRows(), on = otherOn.checked;
+    rows.forEach(function (r, i) { r.querySelector('.other-no').textContent = i + 1; });
+    otherList.querySelectorAll('input,button').forEach(function (el) { el.disabled = !on; });
+    otherAdd.disabled = !on; otherAdd.style.display = rows.length >= OTHER_MAX ? 'none' : '';
+  }
+  function otherAddRow() {
+    if (otherRows().length >= OTHER_MAX) return null;
+    var row = document.createElement('div'); row.className = 'other-row';
+    row.innerHTML = '<span class="other-no"></span><input type="text" class="form-control" name="other_text[]" maxlength="255" placeholder="Other action…">' +
+                    '<button type="button" class="btn-rm other-rm" title="Remove"><i class="fas fa-trash-can"></i></button>';
+    otherList.appendChild(row); otherRefresh();
+    return row.querySelector('input');
+  }
+  otherOn.addEventListener('change', function () { otherRefresh(); if (this.checked) otherRows()[0].querySelector('input').focus(); });
+  otherAdd.addEventListener('click', function () { var i = otherAddRow(); if (i) i.focus(); });
+  otherList.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('.other-rm') : null; if (!b) return;
+    var rows = otherRows(), row = b.closest('.other-row');
+    if (rows.length <= 1) { row.querySelector('input').value = ''; return; }
+    row.remove(); otherRefresh();
+  });
+  otherList.addEventListener('keydown', function (e) {                // Enter = next action (does not submit the form)
+    if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+    e.preventDefault();
+    if (e.target.value.trim() === '') return;
+    var rows = Array.prototype.slice.call(otherRows()), idx = rows.indexOf(e.target.closest('.other-row'));
+    var next = rows[idx + 1] ? rows[idx + 1].querySelector('input') : otherAddRow();
+    if (next) next.focus();
+  });
+  otherRefresh();
 
   // client-side validation (server re-validates everything)
   document.getElementById('reportForm').addEventListener('submit', function (e) {

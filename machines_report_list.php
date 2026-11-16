@@ -50,9 +50,7 @@ $pages  = max(1, (int)ceil($total / $perPage));
 $page   = min($page, $pages);
 $offset = ($page - 1) * $perPage;
 
-$sql = "SELECT r.*, u.name AS creator_name,
-               (SELECT COUNT(*) FROM machines_report_action a WHERE a.report_id = r.id) AS action_count,
-               (SELECT COUNT(*) FROM machines_report_spareparts s WHERE s.report_id = r.id) AS part_count
+$sql = "SELECT r.*, u.name AS creator_name
         FROM machines_report r
         LEFT JOIN users u ON u.id = r.created_by
         $whereSql
@@ -128,6 +126,19 @@ $hasFilter = ($q !== '' || $type !== '' || $dateFrom !== '' || $dateTo !== '');
       .utbl tbody td.td-act{justify-content:flex-end;padding-bottom:10px;}.utbl tbody td.td-act::before{display:none;}
       .btn-act{height:36px;flex:1;justify-content:center;}.td-act{gap:8px!important;}
     }
+
+    /* ===== formal UI: same look as the Gold Testing Labs pages ===== */
+    .sec{border-radius:4px;border-color:#cbd5e1;box-shadow:none;}
+    .sec-head{background:#f3f4f6;border-bottom:1px solid #cbd5e1;}
+    .form-control,.form-select{border:1px solid #9ca3af;border-radius:4px;}
+    .btn-act,.btn-add,.btn-soft,.btn-ghost,.btn-submit{border-radius:4px;}
+    @media(min-width:768px){
+      .utbl{border:1px solid #cbd5e1;}
+      .utbl thead th{background:#f3f4f6;color:#111827;text-transform:none;letter-spacing:0;font-size:.82rem;font-weight:700;border:1px solid #cbd5e1;padding:10px 12px;}
+      .utbl tbody td{border:1px solid #e2e8f0;vertical-align:top;padding:10px 12px;}
+      .utbl tbody tr:hover td{background:#fff;}
+      .utbl .muted{color:#6b7280;font-size:.8rem;}
+    }
   </style>
 </head>
 <body>
@@ -177,19 +188,16 @@ $hasFilter = ($q !== '' || $type !== '' || $dateFrom !== '' || $dateTo !== '');
         <div class="empty"><i class="fas fa-file-circle-question"></i>No reports found.<?= $hasFilter ? ' Try clearing the filters.' : '' ?></div>
       <?php else: ?>
       <table class="utbl">
-        <thead><tr><th>Report</th><th>Date</th><th>Type</th><th>Customer</th><th>Contact</th><th>Instrument</th><th>Engineer</th><th>Details</th><th style="text-align:right">Actions</th></tr></thead>
+        <thead><tr><th>Date</th><th>Type</th><th>Customer</th><th>Instrument</th><th>Engineer</th><th style="text-align:right">Actions</th></tr></thead>
         <tbody>
         <?php foreach ($rows as $r):
             $isInst = $r['report_type'] === 'installation'; ?>
           <tr>
-            <td data-label="Report"><span class="mono fw-bold">MR-<?= str_pad((string)$r['id'], 5, '0', STR_PAD_LEFT) ?></span></td>
             <td data-label="Date"><?= h(date('d M Y', strtotime($r['report_date']))) ?></td>
             <td data-label="Type"><span class="pill <?= $isInst ? 'pill-inst' : 'pill-serv' ?>"><i class="fas fa-<?= $isInst ? 'screwdriver-wrench' : 'gears' ?>"></i><?= $isInst ? 'Installation' : 'Service' ?></span></td>
             <td data-label="Customer"><div class="fw-bold"><?= h($r['customer_name']) ?></div></td>
-            <td data-label="Contact"><div><?= h($r['contact_person'] ?: '—') ?></div><?php if ($r['telephone']): ?><div class="muted"><?= h($r['telephone']) ?></div><?php endif; ?></td>
             <td data-label="Instrument"><div><?= h(trim($r['instrument_type'] . ' ' . $r['model']) ?: '—') ?></div><?php if ($r['instrument_sr_no']): ?><div class="muted mono"><?= h($r['instrument_sr_no']) ?></div><?php endif; ?></td>
             <td data-label="Engineer"><?= h($r['engineer_name'] ?: ($r['creator_name'] ?? '—')) ?></td>
-            <td data-label="Details" class="muted"><?= (int)$r['action_count'] ?> actions · <?= (int)$r['part_count'] ?> parts</td>
             <td class="td-act" style="text-align:right;white-space:nowrap;">
               <div class="d-flex gap-2 justify-content-end">
                 <a class="btn-act btn-edit" href="machines_report_form.php?id=<?= (int)$r['id'] ?>"><i class="fas fa-pen"></i> Edit</a>

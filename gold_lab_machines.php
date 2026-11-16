@@ -62,10 +62,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $lab) {
         if ($d = $st->get_result()->fetch_assoc()) $errors[] = 'Serial No. is already registered to machine “' . $d['machine_no'] . '” of ' . $d['customer_name'] . '.';
         $st->close();
     }
-    if (!$errors) {                                            // machine no. unique inside one lab
-        $st = $conn->prepare("SELECT id FROM gold_testing_lab_customers_machine WHERE customer_id = ? AND machine_no = ? AND id <> ? LIMIT 1");
-        $st->bind_param("isi", $lab['id'], $form['machine_no'], $form['id']); $st->execute();
-        if ($st->get_result()->fetch_row()) $errors[] = 'This laboratory already has a machine with that Machine No.';
+    if (!$errors && $form['model_no'] !== '') {                // model numbers are unique across ALL labs (Machine No. may repeat)
+        $st = $conn->prepare("SELECT m.machine_no, l.customer_name FROM gold_testing_lab_customers_machine m JOIN gold_testing_lab_customers l ON l.id = m.customer_id WHERE m.model_no = ? AND m.id <> ? LIMIT 1");
+        $st->bind_param("si", $form['model_no'], $form['id']); $st->execute();
+        if ($d = $st->get_result()->fetch_assoc()) $errors[] = 'Model No. is already registered to machine “' . $d['machine_no'] . '” of ' . $d['customer_name'] . '.';
         $st->close();
     }
 
@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $lab) {
             header('Location: gold_lab_machines.php?lab=' . (int)$lab['id'] . '&msg=' . $done);   // stay on this laboratory
             exit;
         } catch (Throwable $e) {
-            if ((int)$e->getCode() === 1062) $errors[] = 'Serial No. or Machine No. already exists.';
+            if ((int)$e->getCode() === 1062) $errors[] = 'Serial No. or Model No. already exists.';
             else { error_log('gold machine save failed: ' . $e->getMessage()); $errors[] = 'The machine could not be saved. Nothing was changed — please try again.'; }
         }
     }
@@ -99,7 +99,7 @@ $labs = $conn->query("SELECT id, customer_name FROM gold_testing_lab_customers O
 $machines = [];
 if ($lab) {
     $st = $conn->prepare("SELECT m.*, u.name AS creator_name,
-                                 (SELECT COUNT(*) FROM machines_report r WHERE r.machine_id = m.id) AS report_count
+                                 (SELECT COUNT(*) FROM machines_report_machine x WHERE x.machine_id = m.id) AS report_count
                           FROM gold_testing_lab_customers_machine m
                           LEFT JOIN users u ON u.id = m.created_by
                           WHERE m.customer_id = ?

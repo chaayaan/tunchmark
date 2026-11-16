@@ -256,12 +256,13 @@ $qs = function (array $o = []) use ($q) {
         <div class="empty"><i class="fas fa-flask"></i><?= $q !== '' ? 'No laboratories match your search.' : 'No laboratories yet. Click “Add New Lab” to create the first one.' ?></div>
       <?php else: ?>
       <table class="utbl">
-        <thead><tr><th>Laboratory</th><th>Contact</th><th>Machines &amp; Installation Date</th><th style="text-align:right">Actions</th></tr></thead>
+        <thead><tr><th style="width:64px;">Sl. No.</th><th>Laboratory</th><th>Contact</th><th>Machines &amp; Installation Date</th><th style="text-align:right">Actions</th></tr></thead>
         <tbody>
-        <?php foreach ($rows as $r):
+        <?php foreach ($rows as $i => $r):
             $payload = ['id' => (int)$r['id'], 'customer_name' => $r['customer_name'], 'address' => (string)$r['address'], 'contact_person' => (string)$r['contact_person'],
                         'designation_department' => (string)$r['designation_department'], 'telephone' => (string)$r['telephone'], 'email' => (string)$r['email']]; ?>
           <tr>
+            <td data-label="Sl. No."><?= $offset + $i + 1 ?></td>
             <td data-label="Laboratory"><div class="fw-bold"><?= h($r['customer_name']) ?></div><?php if ($r['address']): ?><div class="muted"><?= h($r['address']) ?></div><?php endif; ?></td>
             <td data-label="Contact"><div><?= h($r['contact_person'] ?: '—') ?></div><div class="muted"><?= h($r['telephone'] ?: '—') ?></div></td>
             <td data-label="Machines">

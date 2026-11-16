@@ -45,8 +45,7 @@ $pages  = max(1, (int)ceil($total / $perPage));
 $page   = min($page, $pages);
 $offset = ($page - 1) * $perPage;
 
-$sql = "SELECT b.*, u.name AS creator_name,
-               (SELECT COUNT(*) FROM machines_billing_items i WHERE i.billing_id = b.id) AS item_count
+$sql = "SELECT b.*, u.name AS creator_name
         FROM machines_billing b
         LEFT JOIN users u ON u.id = b.created_by
         $whereSql
@@ -123,6 +122,19 @@ $hasFilter = ($q !== '' || $status !== '' || $dateFrom !== '' || $dateTo !== '')
       .utbl tbody td.td-act{justify-content:flex-end;padding-bottom:10px;}.utbl tbody td.td-act::before{display:none;}
       .btn-act{height:36px;flex:1;justify-content:center;}.td-act{gap:8px!important;}
     }
+
+    /* ===== formal UI: same look as the Gold Testing Labs pages ===== */
+    .sec{border-radius:4px;border-color:#cbd5e1;box-shadow:none;}
+    .sec-head{background:#f3f4f6;border-bottom:1px solid #cbd5e1;}
+    .form-control,.form-select{border:1px solid #9ca3af;border-radius:4px;}
+    .btn-act,.btn-add,.btn-soft,.btn-ghost,.btn-submit{border-radius:4px;}
+    @media(min-width:768px){
+      .utbl{border:1px solid #cbd5e1;}
+      .utbl thead th{background:#f3f4f6;color:#111827;text-transform:none;letter-spacing:0;font-size:.82rem;font-weight:700;border:1px solid #cbd5e1;padding:10px 12px;}
+      .utbl tbody td{border:1px solid #e2e8f0;vertical-align:top;padding:10px 12px;}
+      .utbl tbody tr:hover td{background:#fff;}
+      .utbl .muted{color:#6b7280;font-size:.8rem;}
+    }
   </style>
 </head>
 <body>
@@ -171,18 +183,15 @@ $hasFilter = ($q !== '' || $status !== '' || $dateFrom !== '' || $dateTo !== '')
         <div class="empty"><i class="fas fa-file-circle-question"></i>No bills found.<?= $hasFilter ? ' Try clearing the filters.' : '' ?></div>
       <?php else: ?>
       <table class="utbl">
-        <thead><tr><th>Bill</th><th>Date</th><th>Customer</th><th>Contact</th><th>Services</th><th style="text-align:right">Grand Total (Tk)</th><th>Payment</th><th>Created by</th><th style="text-align:right">Actions</th></tr></thead>
+        <thead><tr><th>Date</th><th>Customer</th><th>Contact</th><th style="text-align:right">Grand Total (Tk)</th><th>Payment</th><th style="text-align:right">Actions</th></tr></thead>
         <tbody>
         <?php foreach ($rows as $r): $paid = $r['payment_status'] === 'paid'; ?>
           <tr>
-            <td data-label="Bill"><span class="mono fw-bold">AMB-<?= str_pad((string)$r['id'], 5, '0', STR_PAD_LEFT) ?></span></td>
             <td data-label="Date"><?= h(date('d M Y', strtotime($r['billing_date']))) ?></td>
             <td data-label="Customer"><div class="fw-bold"><?= h($r['customer_name']) ?></div></td>
             <td data-label="Contact"><div><?= h($r['contact_person'] ?: '—') ?></div><?php if ($r['telephone']): ?><div class="muted"><?= h($r['telephone']) ?></div><?php endif; ?></td>
-            <td data-label="Services" class="muted"><?= (int)$r['item_count'] ?> item<?= (int)$r['item_count'] === 1 ? '' : 's' ?></td>
             <td data-label="Grand Total" class="amt"><?= h(number_format((float)$r['grand_total'], 2)) ?></td>
             <td data-label="Payment"><span class="pill <?= $paid ? 'pill-paid' : 'pill-unpaid' ?>"><i class="fas fa-<?= $paid ? 'circle-check' : 'clock' ?>"></i><?= $paid ? 'Paid' : 'Unpaid' ?></span></td>
-            <td data-label="Created by"><?= h($r['creator_name'] ?? '—') ?></td>
             <td class="td-act" style="text-align:right;white-space:nowrap;">
               <div class="d-flex gap-2 justify-content-end">
                 <a class="btn-act btn-edit" href="machines_billing_form.php?id=<?= (int)$r['id'] ?>"><i class="fas fa-pen"></i> Edit</a>
