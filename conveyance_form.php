@@ -6,7 +6,7 @@ require_engineering();               // admin + engineer employee only — cover
 if (isset($conn)) { $conn->set_charset('utf8mb4'); }
 if (!function_exists('h')) { function h($v): string { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); } }
 
-const CV_MAX_ROWS = 40;              // keeps the printed bill on one A4 page
+const CV_MAX_ROWS = 100;             // maximum expense rows per bill
 const CV_OWN_ONLY = true;            // true: engineers can open only their own bills, admins open all
 $VEHICLES = ['Cng', 'Auto', 'Bus', 'AC Bus', 'Rickshaw', 'Train', 'Launch', 'Bike', 'Pickup', 'Microbus', 'Other'];
 $PURPOSES = ['Servicing', 'Breakfast', 'Lunch', 'Dinner', 'Hotel', 'Training', 'Office work'];   // suggestions only — any text can be typed
@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $totalC += $c;
         $clean[] = ['date' => $r['date'], 'from' => $r['from'], 'to' => $r['to'], 'purpose' => $r['purpose'], 'vehicle' => $r['vehicle'], 'amount' => $c];
     }
-    if (count($rows) > CV_MAX_ROWS) $errors[] = "A maximum of " . CV_MAX_ROWS . " expense rows fits on the one-page bill.";
+    if (count($rows) > CV_MAX_ROWS) $errors[] = "A maximum of " . CV_MAX_ROWS . " expense rows is allowed per bill.";
     if ($op === 'final' && count($rows) === 0) $errors[] = "Add at least one expense before finalizing.";
     if ($totalC > 999999999999) $errors[] = "The total amount is too large.";
 
@@ -209,6 +209,37 @@ $lastDate = $rows ? end($rows)['date'] : $f['bill_date'];
       .ibtn{width:44px;height:38px;}
       .action-bar{flex-direction:column-reverse;align-items:stretch;}.action-bar>*{justify-content:center;}
     }
+    /* ===== formal UI: same look as the Gold Testing Labs pages ===== */
+    .sec{border-radius:4px;border-color:#cbd5e1;box-shadow:none;}
+    .sec-head{background:#f3f4f6;border-bottom:1px solid #cbd5e1;}
+    .form-control,.form-select{border:1px solid #9ca3af;border-radius:4px;}
+    .btn-act,.btn-add,.btn-soft,.btn-ghost,.btn-submit,.btn-addrow,.btn-draft,.btn-final{border-radius:4px;}
+    @media(min-width:768px){
+      .utbl{border:1px solid #cbd5e1;}
+      .utbl thead th{background:#f3f4f6;color:#111827;text-transform:none;letter-spacing:0;font-size:.82rem;font-weight:700;border:1px solid #cbd5e1;padding:10px 12px;}
+      .utbl tbody td{border:1px solid #e2e8f0;vertical-align:top;padding:10px 12px;}
+      .utbl tbody tr:hover td{background:#fff;}
+      .utbl .muted{color:#6b7280;font-size:.8rem;}
+    }
+    .action-bar{background:#f3f4f6;border-color:#cbd5e1;border-radius:4px;}
+    .list-foot{background:#f3f4f6;border-top:1px solid #cbd5e1;}
+    /* ===== phone: simple 4-column table (Date | Purpose | Amount | Edit) with the header row shown ===== */
+    #listWrap .mob{display:none;}
+    @media(max-width:767.98px){
+      #listWrap .dsk{display:none!important;}
+      #listWrap .utbl{display:table;width:100%;table-layout:fixed;border:1px solid #cbd5e1;}
+      #listWrap .utbl thead{display:table-header-group;}
+      #listWrap .utbl tbody{display:table-row-group;}
+      #listWrap .utbl tr{display:table-row;}
+      #listWrap .utbl thead th{display:table-cell;background:#f3f4f6;color:#111827;text-transform:none;letter-spacing:0;font-size:.75rem;font-weight:700;border:1px solid #cbd5e1;padding:8px 6px;}
+      #listWrap .utbl tbody tr{border:0;padding:0;}
+      #listWrap .utbl tbody td{display:table-cell;width:auto;padding:8px 6px;border:1px solid #e2e8f0;vertical-align:top;font-size:.82rem;line-height:1.35;text-align:left;overflow-wrap:anywhere;}
+      #listWrap .utbl tbody td::before{display:none;}
+      #listWrap .utbl tbody td.amt{text-align:right;white-space:nowrap;font-weight:600;}
+      #listWrap .utbl tbody td.td-act{text-align:center!important;padding:4px;}
+      #listWrap .c-date{width:24%;}#listWrap .c-amt{width:22%;}#listWrap .c-edit{width:48px;}
+      #listWrap .ibtn{width:34px;height:30px;}
+    }
   </style>
 </head>
 <body>
@@ -245,7 +276,7 @@ $lastDate = $rows ? end($rows)['date'] : $f['bill_date'];
 
       <!-- 2. Expenses -->
       <div class="sec">
-        <div class="sec-head"><div class="sec-ico i-amber"><i class="fas fa-receipt"></i></div><div class="sec-title">Expenses</div><div class="sec-meta">Max <?= CV_MAX_ROWS ?> rows</div></div>
+        <div class="sec-head"><div class="sec-ico i-amber"><i class="fas fa-receipt"></i></div><div class="sec-title">Expenses</div></div>
         <div class="sec-body">
           <div class="add-row" id="addRow">
             <div><label class="lbl" for="aDate">Date</label><input type="date" class="form-control" id="aDate" value="<?= h($lastDate) ?>"></div>
@@ -258,12 +289,11 @@ $lastDate = $rows ? end($rows)['date'] : $f['bill_date'];
             <div><button type="button" class="btn-addrow" id="btnAdd"><i class="fas fa-plus"></i> Add</button></div>
           </div>
           <datalist id="purposeList"><?php foreach ($PURPOSES as $p): ?><option value="<?= h($p) ?>"><?php endforeach; ?></datalist>
-          <div class="form-text mt-2">After Add, the date stays and <b>From</b> is set to the last <b>To</b>. For meals / hotel, leave Vehicle as “—”.</div>
         </div>
 
         <div id="listWrap">
           <table class="utbl">
-            <thead><tr><th>SL</th><th>Date</th><th>From</th><th>To</th><th>Purpose</th><th>Vehicle</th><th style="text-align:right">Amount</th><th style="text-align:right">Edit</th></tr></thead>
+            <thead><tr><th class="dsk">SL</th><th class="c-date">Date</th><th class="dsk">From</th><th class="dsk">To</th><th class="dsk">Purpose</th><th class="dsk">Vehicle</th><th class="mob">Purpose</th><th class="c-amt" style="text-align:right">Amount</th><th class="c-edit" style="text-align:right">Edit</th></tr></thead>
             <tbody id="listBody"></tbody>
           </table>
           <div class="list-empty" id="listEmpty">No expenses yet. Fill the row above and press <b>Add</b>.</div>
@@ -313,16 +343,22 @@ $lastDate = $rows ? end($rows)['date'] : $f['bill_date'];
   function money(c) { return (c / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   function cents(v) { return Math.round((parseFloat(v) || 0) * 100); }
 
+  // phone table: "From → To (Vehicle)" for a trip, otherwise just the purpose
+  function particulars(r) {
+    if (r.from || r.to) return esc(r.from || '***') + ' \u2192 ' + esc(r.to || '***') + (r.vehicle ? ' (' + esc(r.vehicle) + ')' : '');
+    return esc(r.purpose) || '***';
+  }
+
   function render() {
     var html = '', total = 0;
     ROWS.forEach(function (r, i) {
       total += cents(r.amount);
-      html += '<tr><td data-label="SL">' + (i + 1) + '</td><td data-label="Date">' + esc(fmtDate(r.date)) + '</td>' +
-        '<td data-label="From">' + (esc(r.from) || '***') + '</td><td data-label="To">' + (esc(r.to) || '***') + '</td>' +
-        '<td data-label="Purpose">' + (esc(r.purpose) || '***') + '</td><td data-label="Vehicle">' + (esc(r.vehicle) || '***') + '</td>' +
+      html += '<tr><td class="dsk" data-label="SL">' + (i + 1) + '</td><td data-label="Date">' + esc(fmtDate(r.date)) + '</td>' +
+        '<td class="dsk" data-label="From">' + (esc(r.from) || '***') + '</td><td class="dsk" data-label="To">' + (esc(r.to) || '***') + '</td>' +
+        '<td class="dsk" data-label="Purpose">' + (esc(r.purpose) || '***') + '</td><td class="dsk" data-label="Vehicle">' + (esc(r.vehicle) || '***') + '</td>' +
+        '<td class="mob" data-label="Purpose">' + particulars(r) + '</td>' +
         '<td data-label="Amount" class="amt">' + money(cents(r.amount)) + '</td>' +
-        '<td class="td-act" style="text-align:right;white-space:nowrap"><button type="button" class="ibtn edit" data-i="' + i + '" title="Edit"><i class="fas fa-pen"></i></button> ' +
-        '<button type="button" class="ibtn del" data-i="' + i + '" title="Delete"><i class="fas fa-trash-can"></i></button></td></tr>';
+        '<td class="td-act" style="text-align:right;white-space:nowrap"><button type="button" class="ibtn edit" data-i="' + i + '" title="Edit"><i class="fas fa-pen"></i></button></td></tr>';
     });
     listBody.innerHTML = html;
     $('listEmpty').style.display = ROWS.length ? 'none' : '';
@@ -366,7 +402,6 @@ $lastDate = $rows ? end($rows)['date'] : $f['bill_date'];
   listBody.addEventListener('click', function (e) {
     var b = e.target.closest('button'); if (!b) return;
     var i = parseInt(b.dataset.i, 10);
-    if (b.classList.contains('del')) { if (confirm('Delete row ' + (i + 1) + '?')) { ROWS.splice(i, 1); render(); } return; }
     editIdx = i; var r = ROWS[i];
     $('mDate').value = r.date; $('mFrom').value = r.from; $('mTo').value = r.to; $('mPurpose').value = r.purpose; $('mVehicle').value = r.vehicle; $('mAmount').value = r.amount;
     modal.show();

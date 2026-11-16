@@ -142,6 +142,18 @@ $fd = fn($d) => $d ? date('d M Y', strtotime($d)) : '';
       .utbl tbody td.td-act{justify-content:flex-end;padding-bottom:10px;}.utbl tbody td.td-act::before{display:none;}
       .btn-act{height:36px;flex:1;justify-content:center;}.td-act{gap:8px!important;}
     }
+    /* ===== formal UI: same look as the Gold Testing Labs pages ===== */
+    .sec{border-radius:4px;border-color:#cbd5e1;box-shadow:none;}
+    .sec-head{background:#f3f4f6;border-bottom:1px solid #cbd5e1;}
+    .form-control,.form-select{border:1px solid #9ca3af;border-radius:4px;}
+    .btn-act,.btn-add,.btn-soft,.btn-ghost,.btn-submit,.btn-addrow,.btn-draft,.btn-final{border-radius:4px;}
+    @media(min-width:768px){
+      .utbl{border:1px solid #cbd5e1;}
+      .utbl thead th{background:#f3f4f6;color:#111827;text-transform:none;letter-spacing:0;font-size:.82rem;font-weight:700;border:1px solid #cbd5e1;padding:10px 12px;}
+      .utbl tbody td{border:1px solid #e2e8f0;vertical-align:top;padding:10px 12px;}
+      .utbl tbody tr:hover td{background:#fff;}
+      .utbl .muted{color:#6b7280;font-size:.8rem;}
+    }
   </style>
 </head>
 <body>
