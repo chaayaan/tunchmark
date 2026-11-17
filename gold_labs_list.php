@@ -87,7 +87,7 @@ if ($q !== '') {
                  OR EXISTS (SELECT 1 FROM gold_testing_lab_customers_machine m2 WHERE m2.customer_id = l.id AND (m2.machine_no LIKE ? OR m2.model_no LIKE ? OR m2.serial_no LIKE ?)))";
     for ($i = 0; $i < 9; $i++) { $types .= 's'; $params[] = $like; }
 }
-$perPage = 20;
+$perPage = 100;
 
 $st = $conn->prepare("SELECT COUNT(*) FROM gold_testing_lab_customers l $where");
 if ($params) $st->bind_param($types, ...$params);
@@ -100,7 +100,7 @@ $offset = ($page - 1) * $perPage;
 $sql = "SELECT l.*
         FROM gold_testing_lab_customers l
         $where
-        ORDER BY l.customer_name ASC, l.id ASC
+        ORDER BY l.id ASC
         LIMIT ? OFFSET ?";
 $st = $conn->prepare($sql);
 $t2 = $types . 'ii'; $p2 = array_merge($params, [$perPage, $offset]);
