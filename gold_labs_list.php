@@ -23,9 +23,9 @@ $page = max(1, (int)($src['page'] ?? 1));
 
 // ---------- Save (add / edit) ----------
 $errors = []; $modalOpen = false;
-$form = ['id' => 0, 'customer_name' => '', 'address' => '', 'contact_person' => '', 'designation_department' => '', 'telephone' => '', 'email' => ''];
+$form = ['id' => 0, 'customer_name' => '', 'address' => '', 'contact_person' => '', 'designation_department' => '', 'telephone' => '', 'email' => '', 'remarks' => ''];
 $limits = ['customer_name' => [150, 'Customer name'], 'address' => [400, 'Address'], 'contact_person' => [100, 'Contact person'],
-           'designation_department' => [100, 'Desgn./Dept.'], 'telephone' => [40, 'Telephone'], 'email' => [120, 'Email']];
+           'designation_department' => [100, 'Desgn./Dept.'], 'telephone' => [40, 'Telephone'], 'email' => [120, 'Email'], 'remarks' => [500, 'Remarks']];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($csrf, (string)($_POST['csrf'] ?? ''))) {
@@ -56,16 +56,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$errors) {
         $nn = fn(string $v) => $v === '' ? null : $v;
         $addr = $nn($form['address']); $cp = $nn($form['contact_person']); $dd = $nn($form['designation_department']);
-        $tel = $nn($form['telephone']); $em = $nn($form['email']);
+        $tel = $nn($form['telephone']); $em = $nn($form['email']); $rm = $nn($form['remarks']);
         try {
             if ($form['id'] > 0) {
-                $st = $conn->prepare("UPDATE gold_testing_lab_customers SET customer_name=?, address=?, contact_person=?, designation_department=?, telephone=?, email=? WHERE id=?");
-                $st->bind_param("ssssssi", $form['customer_name'], $addr, $cp, $dd, $tel, $em, $form['id']);
+                $st = $conn->prepare("UPDATE gold_testing_lab_customers SET customer_name=?, address=?, contact_person=?, designation_department=?, telephone=?, email=?, remarks=? WHERE id=?");
+                $st->bind_param("sssssssi", $form['customer_name'], $addr, $cp, $dd, $tel, $em, $rm, $form['id']);
                 $st->execute(); $st->close();
                 $done = 'updated';
             } else {
-                $st = $conn->prepare("INSERT INTO gold_testing_lab_customers (customer_name, address, contact_person, designation_department, telephone, email, created_by) VALUES (?,?,?,?,?,?,?)");
-                $st->bind_param("ssssssi", $form['customer_name'], $addr, $cp, $dd, $tel, $em, $uid);
+                $st = $conn->prepare("INSERT INTO gold_testing_lab_customers (customer_name, address, contact_person, designation_department, telephone, email, remarks, created_by) VALUES (?,?,?,?,?,?,?,?)");
+                $st->bind_param("sssssssi", $form['customer_name'], $addr, $cp, $dd, $tel, $em, $rm, $uid);
                 $st->execute(); $st->close();
                 $done = 'created';
             }
@@ -83,9 +83,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $where = ''; $types = ''; $params = [];
 if ($q !== '') {
     $like  = '%' . addcslashes($q, '%_\\') . '%';
-    $where = "WHERE (l.customer_name LIKE ? OR l.contact_person LIKE ? OR l.telephone LIKE ? OR l.address LIKE ? OR l.email LIKE ?
+    $where = "WHERE (l.customer_name LIKE ? OR l.contact_person LIKE ? OR l.telephone LIKE ? OR l.address LIKE ? OR l.email LIKE ? OR l.remarks LIKE ?
                  OR EXISTS (SELECT 1 FROM gold_testing_lab_customers_machine m2 WHERE m2.customer_id = l.id AND (m2.machine_no LIKE ? OR m2.model_no LIKE ? OR m2.serial_no LIKE ?)))";
-    for ($i = 0; $i < 8; $i++) { $types .= 's'; $params[] = $like; }
+    for ($i = 0; $i < 9; $i++) { $types .= 's'; $params[] = $like; }
 }
 $perPage = 20;
 
@@ -241,7 +241,7 @@ $qs = function (array $o = []) use ($q) {
         <div class="row g-2 align-items-end">
           <div class="col-12 col-md-9 col-lg-10">
             <label class="lbl" for="q">Search</label>
-            <input type="text" id="q" name="q" class="form-control" value="<?= h($q) ?>" placeholder="Laboratory, contact, telephone, address, email, machine no., model, serial">
+            <input type="text" id="q" name="q" class="form-control" value="<?= h($q) ?>" placeholder="Laboratory, contact, telephone, address, email, remarks, machine no., model, serial">
           </div>
           <div class="col-12 col-md-3 col-lg-2 d-flex gap-2">
             <button class="btn btn-primary flex-fill fw-bold" style="min-height:38px;"><i class="fas fa-search"></i> Search</button>
@@ -256,11 +256,11 @@ $qs = function (array $o = []) use ($q) {
         <div class="empty"><i class="fas fa-flask"></i><?= $q !== '' ? 'No laboratories match your search.' : 'No laboratories yet. Click “Add New Lab” to create the first one.' ?></div>
       <?php else: ?>
       <table class="utbl">
-        <thead><tr><th style="width:64px;">Sl. No.</th><th>Laboratory</th><th>Contact</th><th>Machines &amp; Installation Date</th><th style="text-align:right">Actions</th></tr></thead>
+        <thead><tr><th style="width:64px;">Sl. No.</th><th>Laboratory</th><th>Contact</th><th>Machines &amp; Installation Date</th><th>Remarks</th><th style="text-align:right">Actions</th></tr></thead>
         <tbody>
         <?php foreach ($rows as $i => $r):
             $payload = ['id' => (int)$r['id'], 'customer_name' => $r['customer_name'], 'address' => (string)$r['address'], 'contact_person' => (string)$r['contact_person'],
-                        'designation_department' => (string)$r['designation_department'], 'telephone' => (string)$r['telephone'], 'email' => (string)$r['email']]; ?>
+                        'designation_department' => (string)$r['designation_department'], 'telephone' => (string)$r['telephone'], 'email' => (string)$r['email'], 'remarks' => (string)$r['remarks']]; ?>
           <tr>
             <td data-label="Sl. No."><?= $offset + $i + 1 ?></td>
             <td data-label="Laboratory"><div class="fw-bold"><?= h($r['customer_name']) ?></div><?php if ($r['address']): ?><div class="muted"><?= h($r['address']) ?></div><?php endif; ?></td>
@@ -271,6 +271,7 @@ $qs = function (array $o = []) use ($q) {
                 <span class="mchip" <?= $tip !== '' ? 'title="' . h($tip) . '"' : '' ?>><?= h($m['machine_no']) ?> <span class="muted">— <?= $m['installation_date'] ? h(date('d M Y', strtotime($m['installation_date']))) : 'date not set' ?></span></span>
               <?php endforeach; endif; ?>
             </td>
+            <td data-label="Remarks" style="white-space:pre-line;"><?= $r['remarks'] !== null && trim($r['remarks']) !== '' ? h($r['remarks']) : '<span class="muted">—</span>' ?></td>
             <td class="td-act" style="text-align:right;white-space:nowrap;">
               <div class="d-flex gap-2 justify-content-end">
                 <a class="btn-act btn-mach" href="gold_lab_machines.php?lab=<?= (int)$r['id'] ?>"><i class="fas fa-microchip"></i> Machines</a>
@@ -321,6 +322,7 @@ $qs = function (array $o = []) use ($q) {
           <div class="col-12 col-md-6"><label class="lbl" for="f_desg">Desgn./Dept.</label><input type="text" class="form-control" id="f_desg" name="designation_department" maxlength="100" value="<?= h($form['designation_department']) ?>"></div>
           <div class="col-12 col-md-6"><label class="lbl" for="f_tel">Telephone</label><input type="tel" class="form-control" id="f_tel" name="telephone" maxlength="40" value="<?= h($form['telephone']) ?>"></div>
           <div class="col-12 col-md-6"><label class="lbl" for="f_email">Email</label><input type="email" class="form-control" id="f_email" name="email" maxlength="120" value="<?= h($form['email']) ?>"></div>
+          <div class="col-12"><label class="lbl" for="f_remarks">Remarks</label><textarea class="form-control" id="f_remarks" name="remarks" rows="2" maxlength="500"><?= h($form['remarks']) ?></textarea></div>
         </div>
       </div>
       <div class="modal-footer">
@@ -337,7 +339,7 @@ $qs = function (array $o = []) use ($q) {
   var modalEl = document.getElementById('labModal');
   var modal = new bootstrap.Modal(modalEl);
   var F = { id: 'f_id', customer_name: 'f_name', address: 'f_address', contact_person: 'f_contact',
-            designation_department: 'f_desg', telephone: 'f_tel', email: 'f_email' };
+            designation_department: 'f_desg', telephone: 'f_tel', email: 'f_email', remarks: 'f_remarks' };
 
   function setMode(isEdit) {
     document.getElementById('labModalText').textContent = isEdit ? 'Edit Laboratory' : 'Add New Laboratory';
