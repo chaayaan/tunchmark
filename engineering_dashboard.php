@@ -7,13 +7,13 @@ if (!function_exists('h')) { function h($v): string { return htmlspecialchars((s
 
 // Navigation only: no queries, no counts, no charts.
 $cards = [
-    ['gold_labs_list.php',              'fa-flask-vial',           'Gold Testing Labs','Client laboratories: add, edit, history', 'blue'],
-    ['gold_lab_machines.php',           'fa-microchip',            'Lab Machines',     'Machines installed at each laboratory',   'red'],
     ['machines_report_list.php',        'fa-screwdriver-wrench',   'Machine Reports',  'Installation and service reports',        'violet'],
     ['machines_billing_list.php',       'fa-file-invoice-dollar',  'Annual Billing',   'Annual maintenance bills',                'teal'],
     ['conveyance_list.php',             'fa-route',                'Conveyance Bills', 'Engineer travel and conveyance',          'amber'],
     ['machines_report_action_list.php', 'fa-list-check',           'Report Actions',   'Action checklist used in reports',        'green'],
-    
+    ['gold_labs_list.php',              'fa-flask-vial',           'Gold Testing Labs','Client laboratories: add, edit, history', 'blue'],
+    ['gold_lab_machines.php',           'fa-microchip',            'Lab Machines',     'Machines installed at each laboratory',   'red'],
+    ['gold_lab_history.php',            'fa-clock-rotate-left',    'All Labs History', 'Every report and bill of every laboratory', 'violet'],
 ];
 ?>
 <!doctype html>

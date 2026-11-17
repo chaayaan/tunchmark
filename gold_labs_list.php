@@ -226,6 +226,7 @@ $qs = function (array $o = []) use ($q) {
     <div class="tb-ico"><i class="fas fa-flask-vial"></i></div>
     <div><div class="tb-title">Gold Testing Labs</div><div class="tb-sub"><?= number_format($total) ?> laborator<?= $total === 1 ? 'y' : 'ies' ?><?= $q !== '' ? ' matching your search' : '' ?></div></div>
     <div class="tb-right">
+      <a href="gold_lab_history.php" class="btn-soft"><i class="fas fa-clock-rotate-left"></i><span class="d-none d-sm-inline"> All Labs History</span></a>
       <a href="engineering_dashboard.php" class="btn-soft"><i class="fas fa-grip"></i><span class="d-none d-sm-inline"> Engineering</span></a>
       <button type="button" class="btn-add" id="btnAdd"><i class="fas fa-plus"></i> Add New Lab</button>
     </div>

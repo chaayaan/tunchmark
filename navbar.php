@@ -272,10 +272,13 @@ if ($is_blocked) {
                 'billing'   => ['machines_billing_list.php','machines_billing_form.php','machines_billing_pdf.php'],
                 'convey'    => ['conveyance_list.php','conveyance_form.php','conveyance_print.php'],
                 'actions'   => ['machines_report_action_list.php'],
-                'labs'      => ['gold_labs_list.php','gold_lab_history.php'],
+                'labs'      => ['gold_labs_list.php'],               // + the history page of ONE lab (see below)
                 'machines'  => ['gold_lab_machines.php'],
+                'histall'   => ['gold_lab_history.php'],             // history of ALL labs (no ?id=)
             ];
-            $engPages = array_merge(...array_values($engItems)); ?>
+            $engPages = array_merge(...array_values($engItems));
+            $nbHist    = ($nbPage === 'gold_lab_history.php');
+            $nbHistAll = $nbHist && (int)($_GET['id'] ?? 0) === 0; ?>
         <!-- Engineering (admin + engineers only) -->
         <div class="nb-group">
             <div class="nb-group-toggle <?= in_array($nbPage, $engPages) ? 'nb-active' : '' ?>"
@@ -306,13 +309,17 @@ if ($is_blocked) {
                    href="machines_report_action_list.php">
                     <i class="fas fa-list-check"></i><span>Report Actions</span>
                 </a>
-                <a class="nb-link <?= in_array($nbPage, $engItems['labs']) ? 'nb-active' : '' ?>"
+                <a class="nb-link <?= (in_array($nbPage, $engItems['labs']) || ($nbHist && !$nbHistAll)) ? 'nb-active' : '' ?>"
                    href="gold_labs_list.php">
                     <i class="fas fa-flask-vial"></i><span>Gold Testing Labs</span>
                 </a>
                 <a class="nb-link <?= in_array($nbPage, $engItems['machines']) ? 'nb-active' : '' ?>"
                    href="gold_lab_machines.php">
                     <i class="fas fa-microchip"></i><span>Lab Machines</span>
+                </a>
+                <a class="nb-link <?= $nbHistAll ? 'nb-active' : '' ?>"
+                   href="gold_lab_history.php">
+                    <i class="fas fa-clock-rotate-left"></i><span>All Labs History</span>
                 </a>
             </div>
         </div>
