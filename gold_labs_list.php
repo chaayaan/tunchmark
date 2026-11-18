@@ -111,7 +111,7 @@ $st->execute(); $rows = $st->get_result()->fetch_all(MYSQLI_ASSOC); $st->close()
 $byLab = [];
 if ($rows) {
     $ids = array_map(fn($r) => (int)$r['id'], $rows);
-    $st  = $conn->prepare("SELECT customer_id, machine_no, model_no, serial_no, installation_date FROM gold_testing_lab_customers_machine WHERE customer_id IN (" . implode(',', array_fill(0, count($ids), '?')) . ") ORDER BY machine_no ASC, id ASC");
+    $st  = $conn->prepare("SELECT customer_id, machine_no, model_no, serial_no, installation_date FROM gold_testing_lab_customers_machine WHERE customer_id IN (" . implode(',', array_fill(0, count($ids), '?')) . ") ORDER BY machine_no ASC, model_no ASC, id ASC");
     $st->bind_param(str_repeat('i', count($ids)), ...$ids); $st->execute();
     foreach ($st->get_result() as $m) $byLab[(int)$m['customer_id']][] = $m;
     $st->close();
@@ -268,8 +268,8 @@ $qs = function (array $o = []) use ($q) {
             <td data-label="Contact"><div><?= h($r['contact_person'] ?: '—') ?></div><div class="muted"><?= h($r['telephone'] ?: '—') ?></div></td>
             <td data-label="Machines">
               <?php $ms = $byLab[(int)$r['id']] ?? []; if (!$ms): ?><span class="muted">—</span>
-              <?php else: foreach ($ms as $m): $tip = trim(($m['model_no'] ?? '') . ($m['serial_no'] ? ' · SN ' . $m['serial_no'] : '')); ?>
-                <span class="mchip" <?= $tip !== '' ? 'title="' . h($tip) . '"' : '' ?>><?= h($m['machine_no']) ?> <span class="muted">— <?= $m['installation_date'] ? h(date('d M Y', strtotime($m['installation_date']))) : 'date not set' ?></span></span>
+              <?php else: foreach ($ms as $m): $tip = $m['serial_no'] ? 'SN ' . $m['serial_no'] : ''; $mname = trim($m['machine_no'] . ' ' . ($m['model_no'] ?? '')); ?>
+                <span class="mchip" <?= $tip !== '' ? 'title="' . h($tip) . '"' : '' ?>><?= h($mname) ?> <span class="muted">— <?= $m['installation_date'] ? h(date('d M Y', strtotime($m['installation_date']))) : 'date not set' ?></span></span>
               <?php endforeach; endif; ?>
             </td>
             <td data-label="Remarks" style="white-space:pre-line;"><?= $r['remarks'] !== null && trim($r['remarks']) !== '' ? h($r['remarks']) : '<span class="muted">—</span>' ?></td>
