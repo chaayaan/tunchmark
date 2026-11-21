@@ -7,20 +7,22 @@ if (!function_exists('h')) { function h($v): string { return htmlspecialchars((s
 
 // Navigation only: no queries, no counts, no charts.
 $cards = [
-    ['machines_report_list.php',        'fa-screwdriver-wrench',   'Machine Reports',  'Installation and service reports',        'violet'],
-    ['machines_billing_list.php',       'fa-file-invoice-dollar',  'Annual Billing',   'Annual maintenance bills',                'teal'],
+    ['machines_report_list.php',        'fa-screwdriver-wrench',   'Service/Installation Report', 'Installation and service reports', 'violet'],
+    ['machines_billing_list.php',       'fa-file-invoice-dollar',  'Annual Maintenance Schedule Bills Report', 'Annual maintenance bills', 'teal'],
+    ['quotation_list.php',              'fa-file-signature',       'Quotations',       'Machine and software quotations',         'blue'],
     ['conveyance_list.php',             'fa-route',                'Conveyance Bills', 'Engineer travel and conveyance',          'amber'],
-    ['machines_report_action_list.php', 'fa-list-check',           'Report Actions',   'Action checklist used in reports',        'green'],
     ['gold_labs_list.php',              'fa-flask-vial',           'Gold Testing Labs','Client laboratories: add, edit, history', 'blue'],
     ['gold_lab_machines.php',           'fa-microchip',            'Lab Machines',     'Machines installed at each laboratory',   'red'],
     ['gold_lab_history.php',            'fa-clock-rotate-left',    'All Labs History', 'Every report and bill of every laboratory', 'violet'],
+    ['machines_report_action_list.php', 'fa-list-check',           'Report Actions',   'Action checklist used in reports',        'green'],
 ];
 ?>
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f766e">
   <link rel="icon" type="image/png" href="favicon.png">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -111,6 +113,23 @@ $cards = [
     .dcard .d-go{margin-left:auto;color:var(--t4);}
     @media(max-width:1199.98px){.dgrid{grid-template-columns:repeat(2,minmax(0,1fr));}}
     @media(max-width:575.98px){.dgrid{grid-template-columns:1fr;}}
+
+    /* ===== Mobile: native-app style list (phones) — desktop view above is untouched ===== */
+    @media(max-width:767.98px){
+      body{-webkit-tap-highlight-color:transparent;}
+      .top-bar{min-height:50px;padding:6px 14px;}
+      .tb-title{font-size:1rem;}
+      .main{padding:14px 14px calc(30px + env(safe-area-inset-bottom));gap:10px;}
+      .dgrid{grid-template-columns:1fr;gap:10px;}
+      .dcard{gap:14px;padding:14px 16px;min-height:72px;border:0;border-radius:16px;box-shadow:0 1px 4px rgba(0,0,0,.1);touch-action:manipulation;transition:transform .1s,background .1s;}
+      .dcard:hover{transform:none;box-shadow:0 1px 4px rgba(0,0,0,.1);}
+      .dcard:active{transform:scale(.98);background:#f8fafc;}
+      .dcard .d-ico{width:46px;height:46px;border-radius:14px;font-size:19px;}
+      .dcard .d-text{min-width:0;flex:1;}
+      .dcard .d-t{font-size:.98rem;line-height:1.25;}
+      .dcard .d-s{font-size:.78rem;line-height:1.3;}
+      .dcard .d-go{font-size:.8rem;}
+    }
   </style>
 </head>
 <body>
@@ -125,7 +144,7 @@ $cards = [
       <?php foreach ($cards as [$href, $icon, $title, $sub, $tone]): ?>
         <a class="dcard" href="<?= h($href) ?>">
           <div class="d-ico i-<?= h($tone) ?>"><i class="fas <?= h($icon) ?>"></i></div>
-          <div><div class="d-t"><?= h($title) ?></div><div class="d-s"><?= h($sub) ?></div></div>
+          <div class="d-text"><div class="d-t"><?= h($title) ?></div><div class="d-s"><?= h($sub) ?></div></div>
           <i class="fas fa-chevron-right d-go"></i>
         </a>
       <?php endforeach; ?>

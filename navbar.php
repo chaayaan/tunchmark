@@ -295,11 +295,15 @@ if ($is_blocked) {
                 </a>
                 <a class="nb-link <?= in_array($nbPage, $engItems['reports']) ? 'nb-active' : '' ?>"
                    href="machines_report_list.php">
-                    <i class="fas fa-screwdriver-wrench"></i><span>Machine Reports</span>
+                    <i class="fas fa-screwdriver-wrench"></i><span>Service/Installation Report</span>
                 </a>
                 <a class="nb-link <?= in_array($nbPage, $engItems['billing']) ? 'nb-active' : '' ?>"
                    href="machines_billing_list.php">
-                    <i class="fas fa-file-invoice-dollar"></i><span>Annual Billing</span>
+                    <i class="fas fa-file-invoice-dollar"></i><span>Annual Maintenance Schedule Bills Report</span>
+                </a>
+                <a class="nb-link <?= in_array($nbPage, $engItems['quotations'] ?? ['quotation_list.php', 'quotation_form.php', 'quotation_pdf.php']) ? 'nb-active' : '' ?>"
+                   href="quotation_list.php">
+                    <i class="fas fa-file-signature"></i><span>Quotations</span>
                 </a>
                 <a class="nb-link <?= in_array($nbPage, $engItems['convey']) ? 'nb-active' : '' ?>"
                    href="conveyance_list.php">
@@ -324,7 +328,7 @@ if ($is_blocked) {
             </div>
         </div>
         <?php endif; ?>
-
+        
         <?php if (isset($_SESSION['role']) && in_array($_SESSION['role'], ['admin', 'employee'])): ?>
         <!-- Manage -->
         <div class="nb-group">
