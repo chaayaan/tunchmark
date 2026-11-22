@@ -270,6 +270,7 @@ if ($is_blocked) {
                 'dashboard' => ['engineering_dashboard.php'],
                 'reports'   => ['machines_report_list.php','machines_report_form.php','machines_report_pdf.php'],
                 'billing'   => ['machines_billing_list.php','machines_billing_form.php','machines_billing_pdf.php'],
+                'quotations'=> ['quotation_list.php','quotation_form.php','quotation_pdf.php'],
                 'convey'    => ['conveyance_list.php','conveyance_form.php','conveyance_print.php'],
                 'actions'   => ['machines_report_action_list.php'],
                 'labs'      => ['gold_labs_list.php'],               // + the history page of ONE lab (see below)
@@ -301,7 +302,7 @@ if ($is_blocked) {
                    href="machines_billing_list.php">
                     <i class="fas fa-file-invoice-dollar"></i><span>Annual Maintenance Schedule Bills Report</span>
                 </a>
-                <a class="nb-link <?= in_array($nbPage, $engItems['quotations'] ?? ['quotation_list.php', 'quotation_form.php', 'quotation_pdf.php']) ? 'nb-active' : '' ?>"
+                <a class="nb-link <?= in_array($nbPage, $engItems['quotations']) ? 'nb-active' : '' ?>"
                    href="quotation_list.php">
                     <i class="fas fa-file-signature"></i><span>Quotations</span>
                 </a>
@@ -622,6 +623,10 @@ if ($is_blocked) {
     font-size: .8rem;
     color: #6c757d;
 }
+
+/* long submenu labels wrap onto a second line instead of being cut off */
+.nb-submenu .nb-link { white-space: normal; align-items: flex-start; line-height: 1.3; }
+.nb-submenu .nb-link i { margin-top: .12rem; }
 
 .nb-submenu .nb-link:hover { color: #0dcaf0; background: rgba(13,202,240,.07); }
 .nb-submenu .nb-link.nb-active { color: #0dcaf0; }
