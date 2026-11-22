@@ -202,27 +202,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $d = $conn->prepare("DELETE FROM quotation_items WHERE quotation_id = ?");
                 $d->bind_param("i", $rid); $d->execute(); $d->close();
             } else {
-                // Quotation no: SI-<serial of the day>-<dd-mm-yyyy>, e.g. SI-01-20-11-2026
+                // Quotation no: SI-<id>-<dd-mm-yyyy>, e.g. SI-15-22-11-2026 (id = primary key).
+                // The id is only known after the insert, so insert with a temporary unique number, then set the real one.
                 $suffix = DateTime::createFromFormat('Y-m-d', $f['quotation_date'])->format('d-m-Y');
-                $cs = $conn->prepare("SELECT COUNT(*) FROM quotations WHERE quotation_date = ? FOR UPDATE");
-                $cs->bind_param("s", $f['quotation_date']); $cs->execute();
-                $serial = (int)$cs->get_result()->fetch_row()[0] + 1; $cs->close();
-                $ck = $conn->prepare("SELECT 1 FROM quotations WHERE quotation_no = ? LIMIT 1");
-                do {
-                    $no = sprintf('SI-%02d-%s', $serial, $suffix);
-                    $ck->bind_param("s", $no); $ck->execute();
-                    $exists = (bool)$ck->get_result()->fetch_row();
-                    $serial++;
-                } while ($exists);
-                $ck->close();
+                $tmpNo  = 'TMP-' . bin2hex(random_bytes(8));
 
                 $insCols = array_merge(['quotation_no'], $cols);
                 $ph   = implode(',', array_fill(0, count($insCols) + 1, '?'));
                 $stmt = $conn->prepare("INSERT INTO quotations (" . implode(',', $insCols) . ", created_by) VALUES ($ph)");
-                $bindVals = array_merge([$no], $vals, [$uid]);
+                $bindVals = array_merge([$tmpNo], $vals, [$uid]);
                 $stmt->bind_param(str_repeat('s', count($insCols)) . 'i', ...$bindVals);
                 $stmt->execute();
                 $rid = (int)$conn->insert_id; $stmt->close();
+
+                $realNo = sprintf('SI-%02d-%s', $rid, $suffix);
+                $un = $conn->prepare("UPDATE quotations SET quotation_no = ? WHERE id = ?");
+                $un->bind_param("si", $realNo, $rid); $un->execute(); $un->close();
             }
 
             $stmt = $conn->prepare("INSERT INTO quotation_items (quotation_id, cat_no, category, item, quantity, unit_price, line_total) VALUES (?,?,?,?,?,?,?)");
@@ -421,7 +416,7 @@ $pageTitle = $isEdit ? 'Edit Quotation ' . $quotationNo : 'New Quotation';
         <div class="sec-head"><div class="sec-ico i-blue"><i class="fas fa-building"></i></div><div class="sec-title">Customer &amp; Quotation Details</div></div>
         <div class="sec-body"><div class="row g-3">
           <div class="col-12 col-md-6"><label class="lbl" for="quotation_date">Date <span class="req">*</span></label><input type="date" class="form-control" id="quotation_date" name="quotation_date" value="<?= h($f['quotation_date']) ?>" required></div>
-          <div class="col-12 col-md-6"><label class="lbl">Quotation No</label><input type="text" class="form-control" value="<?= h($quotationNo !== '' ? $quotationNo : 'Auto-generated on save (SI-01-dd-mm-yyyy)') ?>" readonly disabled></div>
+          <div class="col-12 col-md-6"><label class="lbl">Quotation No</label><input type="text" class="form-control" value="<?= h($quotationNo !== '' ? $quotationNo : 'Auto-generated on save (SI-id-dd-mm-yyyy)') ?>" readonly disabled></div>
 
           <div class="col-12 col-md-6"><label class="lbl" for="lab_id">Laboratory (optional)</label>
             <select class="form-select" id="lab_id" name="lab_id"><option value="">— None / new customer —</option>
